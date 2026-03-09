@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Voice Trainer",
+    "slug": "voice-trainer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A1A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "cloud.newbold.voicetrainer",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Voice Trainer needs microphone access to detect your pitch in real-time.",
+        "NSCameraUsageDescription": "Voice Trainer needs camera access for video features."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A1A"
+      },
+      "package": "cloud.newbold.voicetrainer",
+      "permissions": ["RECORD_AUDIO"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Voice Trainer needs microphone access to detect your pitch in real-time."
+        }
+      ]
+    ],
+    "scheme": "voicetrainer",
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "voice-trainer"
+      }
+    }
+  }
+}
