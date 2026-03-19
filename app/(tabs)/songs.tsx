@@ -1,2 +1,1 @@
-import SongMatchScreen from '../../src/screens/SongMatchScreen';
-export default SongMatchScreen;
+export { default } from '../../src/screens/SongMatchScreen';

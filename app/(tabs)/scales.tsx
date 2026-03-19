@@ -1,2 +1,1 @@
-import ScalesScreen from '../../src/screens/ScalesScreen';
-export default ScalesScreen;
+export { default } from '../../src/screens/ScalesScreen';
