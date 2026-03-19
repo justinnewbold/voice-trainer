@@ -1,310 +1,140 @@
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../../src/constants/theme';
-import { loadProgress, UserProgress, getLevelLabel, getXpForNextLevel } from '../../src/utils/storage';
+import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
+import { loadProgress, UserProgress, levelInfo, getGems, getDailyProgress } from '../utils/storage';
 
 export default function HomeScreen() {
   const router = useRouter();
   const [progress, setProgress] = useState<UserProgress | null>(null);
+  const [gems, setGems] = useState(0);
+  const [daily, setDaily] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchProgress = useCallback(async () => {
-    const p = await loadProgress();
+  const fetchData = useCallback(async () => {
+    const [p, g, d] = await Promise.all([loadProgress(), getGems(), getDailyProgress()]);
     setProgress(p);
+    setGems(g);
+    setDaily(d);
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchProgress();
-    }, [fetchProgress])
-  );
+  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchProgress();
-    setRefreshing(false);
-  };
+  const onRefresh = async () => { setRefreshing(true); await fetchData(); setRefreshing(false); };
 
-  const xpInfo = progress ? getXpForNextLevel(progress.xp) : null;
-  const xpProgress = xpInfo ? xpInfo.current / xpInfo.needed : 0;
+  const li = progress ? levelInfo(progress.xp) : null;
+  const xpProgress = li ? (li.needed > 0 ? li.current / li.needed : 1) : 0;
 
   const quickActions = [
-    {
-      label: 'Pitch Trainer',
-      icon: 'mic',
-      color: COLORS.primary,
-      gradient: ['#7C3AED', '#5B21B6'] as [string, string],
-      route: '/(tabs)/pitch',
-      description: 'Real-time pitch detection',
-    },
-    {
-      label: 'Scales',
-      icon: 'musical-notes',
-      color: COLORS.accent,
-      gradient: ['#06B6D4', '#0284C7'] as [string, string],
-      route: '/(tabs)/scales',
-      description: 'Do-Re-Mi exercises',
-    },
-    {
-      label: 'Song Match',
-      icon: 'headset',
-      color: '#EC4899',
-      gradient: ['#EC4899', '#BE185D'] as [string, string],
-      route: '/(tabs)/songs',
-      description: 'Sing along to melodies',
-    },
-    {
-      label: 'Progress',
-      icon: 'bar-chart',
-      color: COLORS.success,
-      gradient: ['#10B981', '#059669'] as [string, string],
-      route: '/(tabs)/progress',
-      description: 'Track your improvement',
-    },
+    { label: 'Warmup', icon: 'flame' as const, color: '#f97316', route: '/(tabs)/warmup', desc: 'Breathing & vocal prep' },
+    { label: 'Pitch', icon: 'mic' as const, color: COLORS.primary, route: '/(tabs)/pitch', desc: 'Real-time detection' },
+    { label: 'Scales', icon: 'musical-notes' as const, color: '#06b6d4', route: '/(tabs)/scales', desc: 'Guided exercises' },
+    { label: 'Songs', icon: 'headset' as const, color: '#ec4899', route: '/(tabs)/songs', desc: 'Match melodies' },
   ];
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
-    >
-      {/* Header */}
-      <LinearGradient
-        colors={['#1A0A35', '#0A0A1A']}
-        style={styles.header}
-      >
-        <Text style={styles.greeting}>Welcome back! 👋</Text>
-        <Text style={styles.title}>Voice Trainer</Text>
-        <Text style={styles.subtitle}>Let's work on your pitch today</Text>
+    <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
+      <LinearGradient colors={['#1a0a2e', '#0A0A1A']} style={styles.header}>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.greeting}>Voice Trainer</Text>
+            <Text style={styles.subtitle}>{li ? `${li.emoji} ${li.label}` : 'Welcome!'}</Text>
+          </View>
+          <View style={styles.gemsContainer}>
+            <Text style={styles.gemsText}>💎 {gems}</Text>
+          </View>
+        </View>
+
+        {/* XP bar */}
+        {progress && li && (
+          <View style={styles.xpContainer}>
+            <View style={styles.xpBar}>
+              <View style={[styles.xpFill, { width: `${Math.min(100, xpProgress * 100)}%` }]} />
+            </View>
+            <Text style={styles.xpText}>{progress.xp} XP{li.next ? ` • ${li.needed - li.current} to ${li.next}` : ''}</Text>
+          </View>
+        )}
+
+        {/* Streak / Stats */}
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{progress?.currentStreak || 0}🔥</Text>
+            <Text style={styles.statLabel}>Streak</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{progress?.totalSessions || 0}</Text>
+            <Text style={styles.statLabel}>Sessions</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{progress?.avgAccuracy || 0}%</Text>
+            <Text style={styles.statLabel}>Accuracy</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{progress?.totalMinutes || 0}</Text>
+            <Text style={styles.statLabel}>Minutes</Text>
+          </View>
+        </View>
       </LinearGradient>
 
-      {/* Level Card */}
-      {progress && (
-        <View style={styles.levelCard}>
-          <View style={styles.levelHeader}>
-            <View>
-              <Text style={styles.levelLabel}>🏆 {getLevelLabel(progress.level)}</Text>
-              <Text style={styles.xpText}>{progress.xp.toLocaleString()} XP</Text>
-            </View>
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{progress.currentStreak}</Text>
-                <Text style={styles.statLabel}>🔥 Streak</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{progress.totalSessions}</Text>
-                <Text style={styles.statLabel}>Sessions</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{progress.avgAccuracy}%</Text>
-                <Text style={styles.statLabel}>Accuracy</Text>
-              </View>
-            </View>
+      {/* Daily Goal */}
+      {daily && (
+        <View style={styles.dailyCard}>
+          <Text style={styles.sectionTitle}>Daily Goal</Text>
+          <View style={styles.dailyBar}>
+            <View style={[styles.dailyFill, { width: `${Math.min(100, (daily.xp / 100) * 100)}%` }]} />
           </View>
-
-          {/* XP Progress Bar */}
-          {xpInfo && xpInfo.needed > xpInfo.current && (
-            <View style={styles.xpBarContainer}>
-              <View style={styles.xpBarTrack}>
-                <View
-                  style={[
-                    styles.xpBarFill,
-                    { width: `${Math.min(100, xpProgress * 100)}%` },
-                  ]}
-                />
-              </View>
-              <Text style={styles.xpBarLabel}>
-                {(xpInfo.needed - xpInfo.current).toLocaleString()} XP to {xpInfo.label}
-              </Text>
-            </View>
-          )}
+          <Text style={styles.dailyText}>{daily.xp} / 100 XP today • {daily.sessions} sessions</Text>
         </View>
       )}
 
-      {/* Quick Actions */}
-      <Text style={styles.sectionTitle}>Quick Start</Text>
-      <View style={styles.actionsGrid}>
-        {quickActions.map((action) => (
-          <TouchableOpacity
-            key={action.label}
-            style={styles.actionCard}
-            onPress={() => router.push(action.route as any)}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={action.gradient}
-              style={styles.actionGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Ionicons name={action.icon as any} size={28} color="#fff" />
-              <Text style={styles.actionLabel}>{action.label}</Text>
-              <Text style={styles.actionDesc}>{action.description}</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        ))}
+      {/* Quick actions */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Train</Text>
+        <View style={styles.actionsGrid}>
+          {quickActions.map(a => (
+            <TouchableOpacity key={a.label} style={styles.actionCard} onPress={() => router.push(a.route as any)} activeOpacity={0.7}>
+              <View style={[styles.actionIcon, { backgroundColor: a.color + '22' }]}>
+                <Ionicons name={a.icon} size={24} color={a.color} />
+              </View>
+              <Text style={styles.actionLabel}>{a.label}</Text>
+              <Text style={styles.actionDesc}>{a.desc}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
-      {/* Tip of the Day */}
-      <View style={styles.tipCard}>
-        <Text style={styles.tipTitle}>💡 Tip of the Day</Text>
-        <Text style={styles.tipText}>
-          Warm up your voice before singing! Try humming softly for 2-3 minutes to prepare your vocal cords.
-        </Text>
-      </View>
+      <View style={{ height: 100 }} />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    paddingBottom: SPACING['2xl'],
-  },
-  header: {
-    padding: SPACING.xl,
-    paddingTop: SPACING['2xl'],
-  },
-  greeting: {
-    fontSize: FONTS.sizes.md,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
-  },
-  title: {
-    fontSize: FONTS.sizes['3xl'],
-    fontWeight: FONTS.weights.black,
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  subtitle: {
-    fontSize: FONTS.sizes.md,
-    color: COLORS.textSecondary,
-  },
-  levelCard: {
-    margin: SPACING.md,
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  levelHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: SPACING.md,
-  },
-  levelLabel: {
-    fontSize: FONTS.sizes.lg,
-    fontWeight: FONTS.weights.bold,
-    color: COLORS.text,
-  },
-  xpText: {
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: FONTS.sizes.xl,
-    fontWeight: FONTS.weights.bold,
-    color: COLORS.primaryLight,
-  },
-  statLabel: {
-    fontSize: FONTS.sizes.xs,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  xpBarContainer: {
-    gap: SPACING.xs,
-  },
-  xpBarTrack: {
-    height: 6,
-    backgroundColor: COLORS.border,
-    borderRadius: 3,
-  },
-  xpBarFill: {
-    height: '100%',
-    backgroundColor: COLORS.primary,
-    borderRadius: 3,
-  },
-  xpBarLabel: {
-    fontSize: FONTS.sizes.xs,
-    color: COLORS.textMuted,
-    textAlign: 'right',
-  },
-  sectionTitle: {
-    fontSize: FONTS.sizes.lg,
-    fontWeight: FONTS.weights.bold,
-    color: COLORS.text,
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.sm,
-    marginTop: SPACING.sm,
-  },
-  actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: SPACING.sm,
-    gap: SPACING.sm,
-  },
-  actionCard: {
-    width: '47%',
-    borderRadius: BORDER_RADIUS.lg,
-    overflow: 'hidden',
-  },
-  actionGradient: {
-    padding: SPACING.md,
-    minHeight: 110,
-    justifyContent: 'space-between',
-  },
-  actionLabel: {
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.bold,
-    color: '#fff',
-    marginTop: SPACING.sm,
-  },
-  actionDesc: {
-    fontSize: FONTS.sizes.xs,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 2,
-  },
-  tipCard: {
-    margin: SPACING.md,
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.primary + '40',
-  },
-  tipTitle: {
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.bold,
-    color: COLORS.primaryLight,
-    marginBottom: SPACING.sm,
-  },
-  tipText: {
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: { padding: SPACING.lg, paddingTop: 60, borderBottomLeftRadius: BORDER_RADIUS.xl, borderBottomRightRadius: BORDER_RADIUS.xl },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
+  greeting: { fontSize: FONTS.sizes.xl, fontWeight: FONTS.weights.black, color: COLORS.text },
+  subtitle: { fontSize: FONTS.sizes.md, color: COLORS.primaryLight, marginTop: 2 },
+  gemsContainer: { backgroundColor: COLORS.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: BORDER_RADIUS.full },
+  gemsText: { fontSize: FONTS.sizes.sm, fontWeight: FONTS.weights.bold, color: COLORS.text },
+  xpContainer: { marginBottom: SPACING.md },
+  xpBar: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, overflow: 'hidden' },
+  xpFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 },
+  xpText: { fontSize: FONTS.sizes.xs, color: COLORS.textMuted, marginTop: 4 },
+  statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  statItem: { alignItems: 'center' },
+  statValue: { fontSize: FONTS.sizes.lg, fontWeight: FONTS.weights.bold, color: COLORS.text },
+  statLabel: { fontSize: FONTS.sizes.xs, color: COLORS.textMuted, marginTop: 2 },
+  dailyCard: { margin: SPACING.md, backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.md },
+  dailyBar: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, overflow: 'hidden', marginTop: 8 },
+  dailyFill: { height: '100%', backgroundColor: COLORS.success, borderRadius: 3 },
+  dailyText: { fontSize: FONTS.sizes.xs, color: COLORS.textMuted, marginTop: 4 },
+  section: { paddingHorizontal: SPACING.md, marginTop: SPACING.sm },
+  sectionTitle: { fontSize: FONTS.sizes.lg, fontWeight: FONTS.weights.bold, color: COLORS.text, marginBottom: SPACING.sm },
+  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  actionCard: { width: '48%', backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
+  actionIcon: { width: 44, height: 44, borderRadius: BORDER_RADIUS.md, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  actionLabel: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.bold, color: COLORS.text },
+  actionDesc: { fontSize: FONTS.sizes.xs, color: COLORS.textMuted, marginTop: 2 },
 });

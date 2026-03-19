@@ -1,2 +1,1 @@
-import ProgressScreen from '../../src/screens/ProgressScreen';
-export default ProgressScreen;
+export { default } from '../../src/screens/ProgressScreen';

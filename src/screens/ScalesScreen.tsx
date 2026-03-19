@@ -1,375 +1,189 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  FlatList,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../../src/constants/theme';
-import PitchMeter from '../../src/components/PitchMeter';
-import WaveformDisplay from '../../src/components/WaveformDisplay';
-import { usePitchDetection } from '../../src/hooks/usePitchDetection';
-import { EXERCISES, Exercise } from '../../src/utils/scales';
-import { noteToFrequency } from '../../src/utils/pitchUtils';
-import { saveSession } from '../../src/utils/storage';
+import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
+import PitchMeter from '../components/PitchMeter';
+import { usePitchDetection } from '../hooks/usePitchDetection';
+import { EXERCISES, Exercise } from '../utils/scales';
+import { noteToFrequency, frequencyToNoteInfo } from '../utils/pitchUtils';
+import { saveSession } from '../utils/storage';
 
 type Level = 'all' | 'beginner' | 'intermediate' | 'advanced';
+const LEVEL_COLORS: Record<string, string> = { beginner: COLORS.success, intermediate: COLORS.warning, advanced: COLORS.danger };
 
 export default function ScalesScreen() {
-  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const [selected, setSelected] = useState<Exercise | null>(null);
   const [isRunning, setIsRunning] = useState(false);
-  const [currentNoteIndex, setCurrentNoteIndex] = useState(0);
-  const [noteResults, setNoteResults] = useState<number[]>([]);
+  const [noteIdx, setNoteIdx] = useState(0);
+  const [results, setResults] = useState<number[]>([]);
   const [filter, setFilter] = useState<Level>('all');
   const [countdown, setCountdown] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startRef = useRef<Date | null>(null);
+  const { noteInfo, pitchHint, isListening, volume, color, startListening, stopListening } = usePitchDetection();
 
-  const noteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sessionStartRef = useRef<Date | null>(null);
+  const filtered = filter === 'all' ? EXERCISES : EXERCISES.filter(e => e.level === filter);
+  const currentNote = selected?.notes[noteIdx];
 
-  const {
-    noteInfo,
-    pitchHint,
-    isListening,
-    volume,
-    startListening,
-    stopListening,
-  } = usePitchDetection();
-
-  const filteredExercises = filter === 'all'
-    ? EXERCISES
-    : EXERCISES.filter(e => e.level === filter);
-
-  const currentNote = selectedExercise?.notes[currentNoteIndex];
-
-  // When note changes during exercise, check pitch accuracy
   useEffect(() => {
-    if (!isRunning || !currentNote || pitchHint === 'silent') return;
-
-    const targetMidi = currentNote.midiNote;
-    const detectedMidi = noteInfo.midiNote;
-    const diff = Math.abs(targetMidi - detectedMidi);
-    const accuracy = diff === 0 ? 100 : diff === 1 ? 70 : diff === 2 ? 40 : 0;
-
-    setNoteResults(prev => [...prev, accuracy]);
-  }, [pitchHint, currentNoteIndex, isRunning]);
-
-  const startExercise = async (exercise: Exercise) => {
-    setSelectedExercise(exercise);
-    setCurrentNoteIndex(0);
-    setNoteResults([]);
-    setCountdown(3);
-    await startListening();
-
-    // Countdown
-    let count = 3;
-    const cdInterval = setInterval(() => {
-      count--;
-      setCountdown(count);
-      if (count === 0) {
-        clearInterval(cdInterval);
-        setIsRunning(true);
-        sessionStartRef.current = new Date();
-        runNote(exercise, 0);
-      }
-    }, 1000);
-  };
-
-  const runNote = (exercise: Exercise, index: number) => {
-    if (index >= exercise.notes.length) {
-      finishExercise(exercise);
-      return;
+    if (!isRunning || !selected || !currentNote) return;
+    const targetInfo = frequencyToNoteInfo(noteToFrequency(currentNote));
+    const isMatch = noteInfo.note !== '-' && noteInfo.note === targetInfo.note && Math.abs(noteInfo.cents) < 30;
+    if (isMatch) {
+      setResults(prev => [...prev, 100]);
+      const next = noteIdx + 1;
+      if (next >= selected.notes.length) { finishExercise(); return; }
+      setNoteIdx(next);
     }
+  }, [noteInfo, isRunning]);
 
-    setCurrentNoteIndex(index);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    noteTimerRef.current = setTimeout(() => {
-      runNote(exercise, index + 1);
-    }, exercise.notes[index].duration + 200);
-  };
-
-  const finishExercise = async (exercise: Exercise) => {
-    setIsRunning(false);
-    await stopListening();
-
-    const durationSeconds = sessionStartRef.current
-      ? Math.floor((Date.now() - sessionStartRef.current.getTime()) / 1000)
-      : 10;
-
-    const avgAccuracy =
-      noteResults.length > 0
-        ? Math.round(noteResults.reduce((a, b) => a + b, 0) / noteResults.length)
-        : 0;
-
-    await saveSession({
-      id: Date.now().toString(),
-      date: new Date().toISOString(),
-      exerciseId: exercise.id,
-      exerciseName: exercise.name,
-      type: 'scale',
-      durationSeconds,
-      avgAccuracy,
-      notesHit: noteResults.filter(r => r >= 70).length,
-      totalNotes: exercise.notes.length,
-      streak: 0,
-    });
-
-    Alert.alert(
-      '🎵 Exercise Complete!',
-      `${exercise.name}\nAccuracy: ${avgAccuracy}%\nNotes hit: ${noteResults.filter(r => r >= 70).length}/${exercise.notes.length}`,
-      [
-        { text: 'Try Again', onPress: () => startExercise(exercise) },
-        { text: 'Done', style: 'cancel', onPress: () => setSelectedExercise(null) },
-      ]
-    );
-  };
-
-  const stopExercise = async () => {
-    if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
-    setIsRunning(false);
+  const startExercise = async () => {
+    setCountdown(3);
+    for (let i = 3; i > 0; i--) {
+      await new Promise(r => setTimeout(r, 1000));
+      setCountdown(i - 1);
+    }
     setCountdown(0);
+    await startListening();
+    startRef.current = new Date();
+    setIsRunning(true);
+    setNoteIdx(0);
+    setResults([]);
+  };
+
+  const finishExercise = async () => {
+    setIsRunning(false);
     await stopListening();
-    setSelectedExercise(null);
+    const duration = startRef.current ? Math.floor((Date.now() - startRef.current.getTime()) / 1000) : 0;
+    const acc = results.length > 0 ? Math.round(results.reduce((a, b) => a + b, 0) / results.length) : 0;
+    if (selected) {
+      await saveSession({
+        id: Date.now().toString(), date: Date.now(), exerciseId: selected.id, exerciseName: selected.name,
+        type: 'scale', duration, accuracy: acc, notesHit: results.length, totalNotes: selected.notes.length,
+      });
+    }
   };
 
-  const levelColors: Record<Level, string> = {
-    all: COLORS.primary,
-    beginner: COLORS.success,
-    intermediate: COLORS.warning,
-    advanced: COLORS.danger,
-  };
-
-  if (selectedExercise) {
-    const targetFreq = currentNote ? noteToFrequency(currentNote.midiNote) : 0;
-
+  if (selected && (isRunning || countdown > 0)) {
+    const targetInfo = currentNote ? frequencyToNoteInfo(noteToFrequency(currentNote)) : null;
     return (
       <View style={styles.container}>
-        <LinearGradient colors={['#0A1A35', '#0A0A1A']} style={styles.exerciseHeader}>
-          <TouchableOpacity onPress={stopExercise} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-            <Text style={styles.backText}>Stop</Text>
-          </TouchableOpacity>
-          <Text style={styles.exerciseTitle}>{selectedExercise.name}</Text>
+        <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.header}>
+          <Text style={styles.title}>{selected.name}</Text>
+          <Text style={styles.subtitle}>Note {noteIdx + 1} / {selected.notes.length}</Text>
         </LinearGradient>
+        <View style={styles.exerciseContent}>
+          {countdown > 0 ? (
+            <Text style={styles.countdown}>{countdown}</Text>
+          ) : (
+            <>
+              {targetInfo && (
+                <View style={styles.targetNote}>
+                  <Text style={styles.targetLabel}>Sing this note:</Text>
+                  <Text style={styles.targetNoteText}>{targetInfo.note}{targetInfo.octave}</Text>
+                </View>
+              )}
+              <PitchMeter note={noteInfo.note} octave={noteInfo.octave} cents={noteInfo.cents}
+                frequency={0} pitchHint={pitchHint} color={color} volume={volume} isStable={false} />
+              <TouchableOpacity style={styles.stopBtn} onPress={finishExercise}>
+                <Ionicons name="stop" size={20} color="#fff" />
+                <Text style={styles.stopText}>End Exercise</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
+    );
+  }
 
-        {/* Countdown overlay */}
-        {countdown > 0 && (
-          <View style={styles.countdownOverlay}>
-            <Text style={styles.countdownText}>{countdown}</Text>
-            <Text style={styles.countdownSub}>Get ready to sing!</Text>
-          </View>
-        )}
-
-        {/* Current note display */}
-        <View style={styles.noteProgressContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.noteScroll}>
-            {selectedExercise.notes.map((n, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.noteChip,
-                  i === currentNoteIndex && styles.noteChipActive,
-                  i < currentNoteIndex && styles.noteChipDone,
-                ]}
-              >
-                <Text style={[
-                  styles.noteChipText,
-                  i === currentNoteIndex && { color: COLORS.primary },
-                  i < currentNoteIndex && { color: COLORS.success },
-                ]}>
-                  {n.syllable}
-                </Text>
-                <Text style={[styles.noteChipNote, i === currentNoteIndex && { color: COLORS.primaryLight }]}>
-                  {n.note}{n.octave}
-                </Text>
+  if (selected) {
+    const targetNotes = selected.notes.map(m => frequencyToNoteInfo(noteToFrequency(m)));
+    return (
+      <View style={styles.container}>
+        <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.header}>
+          <TouchableOpacity onPress={() => setSelected(null)} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={20} color={COLORS.text} />
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>{selected.name}</Text>
+          <Text style={styles.subtitle}>{selected.description}</Text>
+        </LinearGradient>
+        <ScrollView style={styles.detailContent}>
+          <View style={styles.notePreview}>
+            {targetNotes.map((n, i) => (
+              <View key={i} style={[styles.previewNote, { backgroundColor: LEVEL_COLORS[selected.level] + '22', borderColor: LEVEL_COLORS[selected.level] + '44' }]}>
+                <Text style={[styles.previewNoteText, { color: LEVEL_COLORS[selected.level] }]}>{n.note}{n.octave}</Text>
               </View>
             ))}
-          </ScrollView>
-        </View>
-
-        {/* Target note */}
-        {currentNote && isRunning && (
-          <View style={styles.targetNote}>
-            <Text style={styles.targetLabel}>Sing this note:</Text>
-            <Text style={styles.targetNoteName}>{currentNote.note}{currentNote.octave}</Text>
-            <Text style={styles.targetSyllable}>{currentNote.syllable}</Text>
-            <Text style={styles.targetFreq}>{Math.round(targetFreq)} Hz</Text>
           </View>
-        )}
-
-        {/* Waveform */}
-        <View style={styles.waveformSmall}>
-          <WaveformDisplay volume={volume} isActive={isListening} color={COLORS.accent} />
-        </View>
-
-        {/* Pitch Meter */}
-        <PitchMeter
-          cents={noteInfo.cents}
-          pitchHint={pitchHint}
-          note={noteInfo.note}
-          octave={noteInfo.octave}
-          frequency={noteInfo.frequency}
-        />
+          <TouchableOpacity style={styles.startBtn} onPress={startExercise}>
+            <Ionicons name="play" size={20} color="#fff" />
+            <Text style={styles.startText}>Start Exercise</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <LinearGradient colors={['#0A1A35', '#0A0A1A']} style={styles.header}>
-        <Text style={styles.title}>🎵 Scale Exercises</Text>
-        <Text style={styles.subtitle}>Practice scales and patterns to improve pitch accuracy</Text>
+    <View style={styles.container}>
+      <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.header}>
+        <Text style={styles.title}>Scales & Exercises</Text>
+        <View style={styles.filterRow}>
+          {(['all', 'beginner', 'intermediate', 'advanced'] as Level[]).map(l => (
+            <TouchableOpacity key={l} style={[styles.filterBtn, filter === l && styles.filterActive]} onPress={() => setFilter(l)}>
+              <Text style={[styles.filterText, filter === l && styles.filterTextActive]}>{l.charAt(0).toUpperCase() + l.slice(1)}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </LinearGradient>
-
-      {/* Filter tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
-        {(['all', 'beginner', 'intermediate', 'advanced'] as Level[]).map(level => (
-          <TouchableOpacity
-            key={level}
-            style={[styles.filterTab, filter === level && { backgroundColor: levelColors[level] }]}
-            onPress={() => setFilter(level)}
-          >
-            <Text style={[styles.filterText, filter === level && { color: '#fff' }]}>
-              {level.charAt(0).toUpperCase() + level.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Exercise List */}
-      <View style={styles.exerciseList}>
-        {filteredExercises.map(exercise => (
-          <TouchableOpacity
-            key={exercise.id}
-            style={styles.exerciseCard}
-            onPress={() => startExercise(exercise)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.exerciseCardContent}>
-              <View style={styles.exerciseIcon}>
-                <Ionicons
-                  name={
-                    exercise.type === 'scale' ? 'musical-notes' :
-                    exercise.type === 'arpeggio' ? 'sparkles' :
-                    exercise.type === 'interval' ? 'swap-vertical' : 'grid'
-                  }
-                  size={24}
-                  color={levelColors[exercise.level]}
-                />
-              </View>
-              <View style={styles.exerciseInfo}>
-                <Text style={styles.exerciseName}>{exercise.name}</Text>
-                <Text style={styles.exerciseDesc}>{exercise.description}</Text>
-                <View style={styles.exerciseMeta}>
-                  <View style={[styles.levelBadge, { backgroundColor: levelColors[exercise.level] + '30' }]}>
-                    <Text style={[styles.levelText, { color: levelColors[exercise.level] }]}>
-                      {exercise.level}
-                    </Text>
-                  </View>
-                  <Text style={styles.noteCount}>{exercise.notes.length} notes</Text>
-                  <Text style={styles.noteCount}>{exercise.bpm} BPM</Text>
-                </View>
-              </View>
-              <Ionicons name="play-circle" size={32} color={levelColors[exercise.level]} />
+      <FlatList
+        data={filtered}
+        keyExtractor={e => e.id}
+        contentContainerStyle={{ padding: SPACING.md, paddingBottom: 100 }}
+        renderItem={({ item }) => (
+          <TouchableOpacity style={styles.exerciseCard} onPress={() => setSelected(item)} activeOpacity={0.7}>
+            <View style={[styles.levelDot, { backgroundColor: LEVEL_COLORS[item.level] }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.exerciseName}>{item.name}</Text>
+              <Text style={styles.exerciseDesc}>{item.description} · {item.notes.length} notes · {item.bpm} BPM</Text>
             </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
           </TouchableOpacity>
-        ))}
-      </View>
-    </ScrollView>
+        )}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { paddingBottom: SPACING['2xl'] },
-  header: { padding: SPACING.xl, paddingTop: SPACING['2xl'] },
-  title: { fontSize: FONTS.sizes['2xl'], fontWeight: FONTS.weights.black, color: COLORS.text },
-  subtitle: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginTop: SPACING.xs },
-  filterRow: { paddingHorizontal: SPACING.md, marginVertical: SPACING.md },
-  filterTab: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.card,
-    marginRight: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  filterText: { fontSize: FONTS.sizes.sm, fontWeight: FONTS.weights.medium, color: COLORS.textSecondary },
-  exerciseList: { padding: SPACING.md, gap: SPACING.sm },
-  exerciseCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  exerciseCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: SPACING.md,
-    gap: SPACING.md,
-  },
-  exerciseIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  exerciseInfo: { flex: 1 },
+  header: { paddingTop: 60, paddingBottom: SPACING.md, paddingHorizontal: SPACING.lg },
+  title: { fontSize: FONTS.sizes.xl, fontWeight: FONTS.weights.black, color: COLORS.text },
+  subtitle: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginTop: 4 },
+  filterRow: { flexDirection: 'row', gap: 8, marginTop: SPACING.sm },
+  filterBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: BORDER_RADIUS.full, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border },
+  filterActive: { backgroundColor: COLORS.primary + '22', borderColor: COLORS.primary },
+  filterText: { fontSize: FONTS.sizes.xs, color: COLORS.textMuted, fontWeight: FONTS.weights.semibold },
+  filterTextActive: { color: COLORS.primaryLight },
+  exerciseCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border },
+  levelDot: { width: 10, height: 10, borderRadius: 5 },
   exerciseName: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.bold, color: COLORS.text },
-  exerciseDesc: { fontSize: FONTS.sizes.xs, color: COLORS.textSecondary, marginTop: 2, marginBottom: SPACING.xs },
-  exerciseMeta: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  levelBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  levelText: { fontSize: FONTS.sizes.xs, fontWeight: FONTS.weights.semibold },
-  noteCount: { fontSize: FONTS.sizes.xs, color: COLORS.textMuted },
-  // Exercise active view
-  exerciseHeader: { padding: SPACING.lg, paddingTop: SPACING.xl, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  backBtn: { flexDirection: 'row', alignItems: 'center' },
-  backText: { color: COLORS.text, fontSize: FONTS.sizes.md },
-  exerciseTitle: { fontSize: FONTS.sizes.lg, fontWeight: FONTS.weights.bold, color: COLORS.text, flex: 1, textAlign: 'center' },
-  countdownOverlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 99,
-  },
-  countdownText: { fontSize: 100, fontWeight: FONTS.weights.black, color: COLORS.primary },
-  countdownSub: { fontSize: FONTS.sizes.xl, color: COLORS.textSecondary, marginTop: SPACING.md },
-  noteProgressContainer: { paddingVertical: SPACING.md },
-  noteScroll: { paddingHorizontal: SPACING.md },
-  noteChip: {
-    alignItems: 'center',
-    padding: SPACING.sm,
-    marginRight: SPACING.sm,
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.md,
-    minWidth: 50,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  noteChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primary + '20' },
-  noteChipDone: { borderColor: COLORS.success + '50', opacity: 0.6 },
-  noteChipText: { fontSize: FONTS.sizes.sm, fontWeight: FONTS.weights.bold, color: COLORS.textSecondary },
-  noteChipNote: { fontSize: FONTS.sizes.xs, color: COLORS.textMuted, marginTop: 2 },
-  targetNote: { alignItems: 'center', paddingVertical: SPACING.md },
-  targetLabel: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary },
-  targetNoteName: { fontSize: FONTS.sizes['5xl'], fontWeight: FONTS.weights.black, color: COLORS.primary, marginTop: SPACING.xs },
-  targetSyllable: { fontSize: FONTS.sizes.xl, color: COLORS.primaryLight, fontWeight: FONTS.weights.semibold },
-  targetFreq: { fontSize: FONTS.sizes.sm, color: COLORS.textMuted, marginTop: SPACING.xs },
-  waveformSmall: {
-    marginHorizontal: SPACING.md,
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.sm,
-  },
+  exerciseDesc: { fontSize: FONTS.sizes.xs, color: COLORS.textMuted, marginTop: 2 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
+  backText: { color: COLORS.text, fontSize: FONTS.sizes.sm },
+  detailContent: { flex: 1, padding: SPACING.lg },
+  notePreview: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: SPACING.xl },
+  previewNote: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: BORDER_RADIUS.sm, borderWidth: 1 },
+  previewNoteText: { fontSize: FONTS.sizes.sm, fontWeight: FONTS.weights.bold },
+  startBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: BORDER_RADIUS.lg },
+  startText: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.bold, color: '#fff' },
+  exerciseContent: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.xl },
+  countdown: { fontSize: 72, fontWeight: '900', color: COLORS.primaryLight },
+  targetNote: { alignItems: 'center', gap: 4 },
+  targetLabel: { fontSize: FONTS.sizes.sm, color: COLORS.textMuted },
+  targetNoteText: { fontSize: FONTS.sizes['3xl'], fontWeight: FONTS.weights.black, color: COLORS.primaryLight },
+  stopBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.danger, paddingHorizontal: 24, paddingVertical: 12, borderRadius: BORDER_RADIUS.lg },
+  stopText: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.bold, color: '#fff' },
 });

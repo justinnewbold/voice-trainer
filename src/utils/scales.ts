@@ -1,212 +1,69 @@
-export interface ScaleNote {
-  note: string;
-  octave: number;
-  midiNote: number;
-  syllable: string; // Do, Re, Mi, etc.
-  duration: number; // in ms
-}
-
 export interface Exercise {
   id: string;
   name: string;
-  description: string;
   level: 'beginner' | 'intermediate' | 'advanced';
-  type: 'scale' | 'interval' | 'arpeggio' | 'chromatic';
-  notes: ScaleNote[];
+  notes: number[]; // MIDI note numbers
   bpm: number;
-  category: string;
+  description: string;
 }
 
-const C_MAJOR_SCALE: ScaleNote[] = [
-  { note: 'C', octave: 4, midiNote: 60, syllable: 'Do', duration: 500 },
-  { note: 'D', octave: 4, midiNote: 62, syllable: 'Re', duration: 500 },
-  { note: 'E', octave: 4, midiNote: 64, syllable: 'Mi', duration: 500 },
-  { note: 'F', octave: 4, midiNote: 65, syllable: 'Fa', duration: 500 },
-  { note: 'G', octave: 4, midiNote: 67, syllable: 'Sol', duration: 500 },
-  { note: 'A', octave: 4, midiNote: 69, syllable: 'La', duration: 500 },
-  { note: 'B', octave: 4, midiNote: 71, syllable: 'Ti', duration: 500 },
-  { note: 'C', octave: 5, midiNote: 72, syllable: 'Do', duration: 800 },
-];
-
-const C_MAJOR_ARPEGGIO: ScaleNote[] = [
-  { note: 'C', octave: 4, midiNote: 60, syllable: 'Do', duration: 600 },
-  { note: 'E', octave: 4, midiNote: 64, syllable: 'Mi', duration: 600 },
-  { note: 'G', octave: 4, midiNote: 67, syllable: 'Sol', duration: 600 },
-  { note: 'C', octave: 5, midiNote: 72, syllable: 'Do', duration: 800 },
-  { note: 'G', octave: 4, midiNote: 67, syllable: 'Sol', duration: 600 },
-  { note: 'E', octave: 4, midiNote: 64, syllable: 'Mi', duration: 600 },
-  { note: 'C', octave: 4, midiNote: 60, syllable: 'Do', duration: 800 },
-];
-
-const PENTATONIC_SCALE: ScaleNote[] = [
-  { note: 'C', octave: 4, midiNote: 60, syllable: 'Do', duration: 500 },
-  { note: 'D', octave: 4, midiNote: 62, syllable: 'Re', duration: 500 },
-  { note: 'E', octave: 4, midiNote: 64, syllable: 'Mi', duration: 500 },
-  { note: 'G', octave: 4, midiNote: 67, syllable: 'Sol', duration: 500 },
-  { note: 'A', octave: 4, midiNote: 69, syllable: 'La', duration: 500 },
-  { note: 'C', octave: 5, midiNote: 72, syllable: 'Do', duration: 800 },
-];
-
-const OCTAVE_JUMP: ScaleNote[] = [
-  { note: 'C', octave: 4, midiNote: 60, syllable: 'Low', duration: 700 },
-  { note: 'C', octave: 5, midiNote: 72, syllable: 'High', duration: 700 },
-  { note: 'C', octave: 4, midiNote: 60, syllable: 'Low', duration: 700 },
-  { note: 'C', octave: 5, midiNote: 72, syllable: 'High', duration: 700 },
-  { note: 'C', octave: 4, midiNote: 60, syllable: 'Low', duration: 1000 },
-];
-
-const CHROMATIC_SCALE: ScaleNote[] = [
-  { note: 'C', octave: 4, midiNote: 60, syllable: 'C', duration: 400 },
-  { note: 'C#', octave: 4, midiNote: 61, syllable: 'C#', duration: 400 },
-  { note: 'D', octave: 4, midiNote: 62, syllable: 'D', duration: 400 },
-  { note: 'D#', octave: 4, midiNote: 63, syllable: 'D#', duration: 400 },
-  { note: 'E', octave: 4, midiNote: 64, syllable: 'E', duration: 400 },
-  { note: 'F', octave: 4, midiNote: 65, syllable: 'F', duration: 400 },
-  { note: 'F#', octave: 4, midiNote: 66, syllable: 'F#', duration: 400 },
-  { note: 'G', octave: 4, midiNote: 67, syllable: 'G', duration: 400 },
-  { note: 'G#', octave: 4, midiNote: 68, syllable: 'G#', duration: 400 },
-  { note: 'A', octave: 4, midiNote: 69, syllable: 'A', duration: 400 },
-  { note: 'A#', octave: 4, midiNote: 70, syllable: 'A#', duration: 400 },
-  { note: 'B', octave: 4, midiNote: 71, syllable: 'B', duration: 400 },
-  { note: 'C', octave: 5, midiNote: 72, syllable: 'C', duration: 600 },
-];
-
-const G_MAJOR_SCALE: ScaleNote[] = [
-  { note: 'G', octave: 3, midiNote: 55, syllable: 'Do', duration: 500 },
-  { note: 'A', octave: 3, midiNote: 57, syllable: 'Re', duration: 500 },
-  { note: 'B', octave: 3, midiNote: 59, syllable: 'Mi', duration: 500 },
-  { note: 'C', octave: 4, midiNote: 60, syllable: 'Fa', duration: 500 },
-  { note: 'D', octave: 4, midiNote: 62, syllable: 'Sol', duration: 500 },
-  { note: 'E', octave: 4, midiNote: 64, syllable: 'La', duration: 500 },
-  { note: 'F#', octave: 4, midiNote: 66, syllable: 'Ti', duration: 500 },
-  { note: 'G', octave: 4, midiNote: 67, syllable: 'Do', duration: 800 },
-];
-
 export const EXERCISES: Exercise[] = [
-  {
-    id: 'c-major-scale',
-    name: 'C Major Scale',
-    description: 'The classic Do-Re-Mi scale. Perfect for beginners.',
-    level: 'beginner',
-    type: 'scale',
-    notes: C_MAJOR_SCALE,
-    bpm: 60,
-    category: 'Scales',
-  },
-  {
-    id: 'pentatonic-scale',
-    name: 'C Pentatonic Scale',
-    description: 'A 5-note scale used in almost every style of music.',
-    level: 'beginner',
-    type: 'scale',
-    notes: PENTATONIC_SCALE,
-    bpm: 60,
-    category: 'Scales',
-  },
-  {
-    id: 'c-major-arpeggio',
-    name: 'C Major Arpeggio',
-    description: 'Sing the notes of a C chord one at a time.',
-    level: 'intermediate',
-    type: 'arpeggio',
-    notes: C_MAJOR_ARPEGGIO,
-    bpm: 60,
-    category: 'Arpeggios',
-  },
-  {
-    id: 'octave-jump',
-    name: 'Octave Jump',
-    description: 'Practice jumping a full octave up and down.',
-    level: 'intermediate',
-    type: 'interval',
-    notes: OCTAVE_JUMP,
-    bpm: 60,
-    category: 'Intervals',
-  },
-  {
-    id: 'g-major-scale',
-    name: 'G Major Scale',
-    description: 'A common key for singing, slightly lower than C major.',
-    level: 'intermediate',
-    type: 'scale',
-    notes: G_MAJOR_SCALE,
-    bpm: 72,
-    category: 'Scales',
-  },
-  {
-    id: 'chromatic-scale',
-    name: 'Chromatic Scale',
-    description: 'All 12 notes in an octave. Great for ear training.',
-    level: 'advanced',
-    type: 'chromatic',
-    notes: CHROMATIC_SCALE,
-    bpm: 80,
-    category: 'Advanced',
-  },
+  // Beginner
+  { id: 'b1', name: 'Do-Re-Mi', level: 'beginner', notes: [60,62,64,65,67,65,64,62,60], bpm: 80, description: 'Classic ascending/descending major scale' },
+  { id: 'b2', name: 'Three Note Step', level: 'beginner', notes: [60,62,64,62,60], bpm: 72, description: 'Simple 3-note pattern' },
+  { id: 'b3', name: 'Octave Jump', level: 'beginner', notes: [60,67,72,67,60], bpm: 60, description: 'Jump from root to fifth to octave' },
+  { id: 'b4', name: 'Descending Steps', level: 'beginner', notes: [72,71,69,67,65,64,62,60], bpm: 80, description: 'Walk down the scale smoothly' },
+  { id: 'b5', name: 'Root-Third-Fifth', level: 'beginner', notes: [60,64,67,64,60], bpm: 72, description: 'Major chord tones' },
+  // Intermediate
+  { id: 'i1', name: 'Full Major Scale', level: 'intermediate', notes: [60,62,64,65,67,69,71,72,71,69,67,65,64,62,60], bpm: 100, description: 'Complete ascending and descending' },
+  { id: 'i2', name: 'Minor Scale', level: 'intermediate', notes: [57,59,60,62,64,65,67,69,67,65,64,62,60,59,57], bpm: 92, description: 'Natural minor scale' },
+  { id: 'i3', name: 'Arpeggio Climb', level: 'intermediate', notes: [60,64,67,72,67,64,60,55,60], bpm: 88, description: 'Arpeggiate up and back' },
+  { id: 'i4', name: 'Chromatic Run', level: 'intermediate', notes: [60,61,62,63,64,65,66,67,66,65,64,63,62,61,60], bpm: 96, description: 'Half-step precision' },
+  { id: 'i5', name: 'Pentatonic Flow', level: 'intermediate', notes: [60,62,64,67,69,72,69,67,64,62,60], bpm: 92, description: 'Major pentatonic scale' },
+  { id: 'i6', name: 'Thirds Pattern', level: 'intermediate', notes: [60,64,62,65,64,67,65,69,67,72], bpm: 88, description: 'Scale in thirds' },
+  // Advanced
+  { id: 'a1', name: 'Two Octave Run', level: 'advanced', notes: [48,50,52,53,55,57,59,60,62,64,65,67,69,71,72,71,69,67,65,64,62,60,59,57,55,53,52,50,48], bpm: 120, description: 'Full two-octave major scale' },
+  { id: 'a2', name: 'Jazz Licks', level: 'advanced', notes: [60,63,65,66,67,70,72,75,72,70,67,66,65,63,60], bpm: 108, description: 'Blues scale pattern' },
+  { id: 'a3', name: 'Wide Intervals', level: 'advanced', notes: [60,67,64,72,60,69,65,76,60], bpm: 76, description: 'Large interval jumps' },
+  { id: 'a4', name: 'Melodic Minor', level: 'advanced', notes: [57,59,60,62,64,66,68,69,67,65,64,62,60,59,57], bpm: 96, description: 'Ascending melodic, descending natural' },
+  { id: 'a5', name: 'Diminished Run', level: 'advanced', notes: [60,63,66,69,72,69,66,63,60], bpm: 100, description: 'Symmetrical diminished pattern' },
 ];
 
-export const SONG_MELODIES = [
-  {
-    id: 'twinkle',
-    name: 'Twinkle Twinkle',
-    artist: 'Traditional',
-    level: 'beginner' as const,
-    notes: [
-      { midiNote: 60, duration: 400, syllable: 'Twin-' },
-      { midiNote: 60, duration: 400, syllable: '-kle' },
-      { midiNote: 67, duration: 400, syllable: 'Twin-' },
-      { midiNote: 67, duration: 400, syllable: '-kle' },
-      { midiNote: 69, duration: 400, syllable: 'lit-' },
-      { midiNote: 69, duration: 400, syllable: '-tle' },
-      { midiNote: 67, duration: 700, syllable: 'star' },
-      { midiNote: 65, duration: 400, syllable: 'how' },
-      { midiNote: 65, duration: 400, syllable: 'I' },
-      { midiNote: 64, duration: 400, syllable: 'won-' },
-      { midiNote: 64, duration: 400, syllable: '-der' },
-      { midiNote: 62, duration: 400, syllable: 'what' },
-      { midiNote: 62, duration: 400, syllable: 'you' },
-      { midiNote: 60, duration: 700, syllable: 'are' },
-    ],
-  },
-  {
-    id: 'happy-birthday',
-    name: 'Happy Birthday',
-    artist: 'Traditional',
-    level: 'beginner' as const,
-    notes: [
-      { midiNote: 60, duration: 300, syllable: 'Hap-' },
-      { midiNote: 60, duration: 300, syllable: '-py' },
-      { midiNote: 62, duration: 600, syllable: 'birth-' },
-      { midiNote: 60, duration: 600, syllable: '-day' },
-      { midiNote: 65, duration: 600, syllable: 'to' },
-      { midiNote: 64, duration: 900, syllable: 'you' },
-      { midiNote: 60, duration: 300, syllable: 'Hap-' },
-      { midiNote: 60, duration: 300, syllable: '-py' },
-      { midiNote: 62, duration: 600, syllable: 'birth-' },
-      { midiNote: 60, duration: 600, syllable: '-day' },
-      { midiNote: 67, duration: 600, syllable: 'to' },
-      { midiNote: 65, duration: 900, syllable: 'you' },
-    ],
-  },
-  {
-    id: 'mary-had-lamb',
-    name: 'Mary Had a Little Lamb',
-    artist: 'Traditional',
-    level: 'intermediate' as const,
-    notes: [
-      { midiNote: 64, duration: 400, syllable: 'Ma-' },
-      { midiNote: 62, duration: 400, syllable: '-ry' },
-      { midiNote: 60, duration: 400, syllable: 'had' },
-      { midiNote: 62, duration: 400, syllable: 'a' },
-      { midiNote: 64, duration: 400, syllable: 'lit-' },
-      { midiNote: 64, duration: 400, syllable: '-tle' },
-      { midiNote: 64, duration: 700, syllable: 'lamb' },
-      { midiNote: 62, duration: 400, syllable: 'lit-' },
-      { midiNote: 62, duration: 400, syllable: '-tle' },
-      { midiNote: 62, duration: 700, syllable: 'lamb' },
-      { midiNote: 64, duration: 400, syllable: 'lit-' },
-      { midiNote: 67, duration: 400, syllable: '-tle' },
-      { midiNote: 67, duration: 700, syllable: 'lamb' },
-    ],
-  },
+export interface SongMelody {
+  id: string;
+  name: string;
+  artist: string;
+  level: 'beginner' | 'intermediate' | 'advanced';
+  notes: { midi: number; duration: number }[]; // duration in beats
+  bpm: number;
+}
+
+export const SONG_MELODIES: SongMelody[] = [
+  // Beginner
+  { id: 's1', name: 'Twinkle Twinkle', artist: 'Traditional', level: 'beginner', bpm: 80,
+    notes: [60,60,67,67,69,69,67,0, 65,65,64,64,62,62,60,0].map(m => ({ midi: m, duration: 1 })) },
+  { id: 's2', name: 'Happy Birthday', artist: 'Traditional', level: 'beginner', bpm: 72,
+    notes: [60,60,62,60,65,64, 60,60,62,60,67,65].map(m => ({ midi: m, duration: 1 })) },
+  { id: 's3', name: 'Mary Had a Little Lamb', artist: 'Traditional', level: 'beginner', bpm: 80,
+    notes: [64,62,60,62,64,64,64, 62,62,62, 64,67,67].map(m => ({ midi: m, duration: 1 })) },
+  { id: 's4', name: 'Jingle Bells', artist: 'Traditional', level: 'beginner', bpm: 88,
+    notes: [64,64,64,64,64,64,64,67,60,62,64].map(m => ({ midi: m, duration: 1 })) },
+  // Intermediate
+  { id: 's5', name: 'Amazing Grace', artist: 'Traditional', level: 'intermediate', bpm: 72,
+    notes: [60,65,67,65,67,65,64,60, 60,65,67,65,67,72].map(m => ({ midi: m, duration: 1.5 })) },
+  { id: 's6', name: 'Greensleeves', artist: 'Traditional', level: 'intermediate', bpm: 84,
+    notes: [57,60,62,64,65,64,62,59,55,57,59,60,59,57,56,55,57].map(m => ({ midi: m, duration: 1 })) },
+  { id: 's7', name: 'Ode to Joy', artist: 'Beethoven', level: 'intermediate', bpm: 96,
+    notes: [64,64,65,67,67,65,64,62,60,60,62,64,64,62,62].map(m => ({ midi: m, duration: 1 })) },
+  { id: 's8', name: 'Scarborough Fair', artist: 'Traditional', level: 'intermediate', bpm: 76,
+    notes: [57,57,64,62,60,64,67,69,67,64,65,62,57].map(m => ({ midi: m, duration: 1.5 })) },
+  // Advanced
+  { id: 's9', name: 'Hallelujah', artist: 'Leonard Cohen', level: 'advanced', bpm: 72,
+    notes: [60,60,62,64,64,62,64,65,65,64,62,60,60,62,64,67].map(m => ({ midi: m, duration: 1.5 })) },
+  { id: 's10', name: 'Ave Maria', artist: 'Schubert', level: 'advanced', bpm: 64,
+    notes: [60,64,67,72,72,71,67,64,65,64,60,67,65,64,62,60].map(m => ({ midi: m, duration: 2 })) },
+  { id: 's11', name: 'Bohemian Rhapsody', artist: 'Queen', level: 'advanced', bpm: 72,
+    notes: [67,67,67,65,67,69,69,65,62,60,60,62,64,65,64,62,60].map(m => ({ midi: m, duration: 1 })) },
+  { id: 's12', name: 'Someone Like You', artist: 'Adele', level: 'advanced', bpm: 68,
+    notes: [64,64,67,67,69,69,67,67,64,64,62,60,60,62,64].map(m => ({ midi: m, duration: 1 })) },
 ];

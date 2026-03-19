@@ -1,87 +1,35 @@
-import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated } from 'react-native';
+import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import { COLORS } from '../constants/theme';
 
-interface WaveformDisplayProps {
-  volume: number;      // 0 to 1
-  isActive: boolean;
-  color?: string;
-  barCount?: number;
+interface Props {
+  volume: number;
+  color: string;
+  isListening: boolean;
 }
 
-export default function WaveformDisplay({
-  volume,
-  isActive,
-  color = COLORS.primary,
-  barCount = 32,
-}: WaveformDisplayProps) {
-  const bars = useRef(
-    Array.from({ length: barCount }, () => new Animated.Value(0.05))
-  ).current;
+export default function WaveformDisplay({ volume, color, isListening }: Props) {
+  if (!isListening) return null;
 
-  useEffect(() => {
-    if (!isActive || volume < 0.05) {
-      // Flat line
-      bars.forEach(bar => {
-        Animated.spring(bar, {
-          toValue: 0.05,
-          tension: 80,
-          friction: 10,
-          useNativeDriver: false,
-        }).start();
-      });
-      return;
-    }
-
-    // Animate bars randomly based on volume
-    bars.forEach((bar, i) => {
-      const centerFactor = 1 - Math.abs((i / barCount) - 0.5) * 0.8;
-      const randomFactor = 0.5 + Math.random() * 0.5;
-      const targetHeight = volume * randomFactor * centerFactor;
-
-      Animated.spring(bar, {
-        toValue: Math.max(0.05, Math.min(1, targetHeight)),
-        tension: 100 + Math.random() * 60,
-        friction: 8,
-        useNativeDriver: false,
-      }).start();
-    });
-  }, [volume, isActive]);
-
+  const bars = 20;
   return (
     <View style={styles.container}>
-      {bars.map((bar, i) => (
-        <Animated.View
-          key={i}
-          style={[
-            styles.bar,
-            {
-              backgroundColor: color,
-              opacity: isActive ? 0.8 + (volume * 0.2) : 0.3,
-              height: bar.interpolate({
-                inputRange: [0, 1],
-                outputRange: ['5%', '100%'],
-              }),
-            },
-          ]}
-        />
-      ))}
+      {Array.from({ length: bars }, (_, i) => {
+        const center = bars / 2;
+        const dist = Math.abs(i - center) / center;
+        const height = Math.max(4, (1 - dist * 0.7) * volume * 40);
+        return (
+          <View
+            key={i}
+            style={[styles.bar, { height, backgroundColor: color, opacity: 0.4 + volume * 0.6 }]}
+          />
+        );
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 60,
-    gap: 3,
-    paddingHorizontal: 8,
-  },
-  bar: {
-    flex: 1,
-    borderRadius: 3,
-    minHeight: 3,
-  },
+  container: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, height: 40 },
+  bar: { width: 3, borderRadius: 2, minHeight: 4 },
 });
