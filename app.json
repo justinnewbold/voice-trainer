@@ -14,12 +14,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "cloud.newbold.voicetrainer",
-      "buildNumber": "2",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Voice Trainer needs microphone access to detect your pitch in real-time.",
         "UIBackgroundModes": [
           "audio"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
