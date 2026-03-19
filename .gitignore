@@ -13,3 +13,4 @@ web-build/
 *.orig.*
 ios/
 android/
+package-lock.json

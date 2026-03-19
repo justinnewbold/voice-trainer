@@ -17,7 +17,9 @@
       "buildNumber": "2",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Voice Trainer needs microphone access to detect your pitch in real-time.",
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -26,7 +28,11 @@
         "backgroundColor": "#0A0A1A"
       },
       "package": "cloud.newbold.voicetrainer",
-      "permissions": ["RECORD_AUDIO"]
+      "permissions": [
+        "RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -53,10 +59,11 @@
         "origin": false
       },
       "eas": {
-        "projectId": "voice-trainer"
+        "projectId": "55813256-d513-4205-97f8-06949d203842"
       },
       "supabaseUrl": "https://dueulgzlooapdblwwaik.supabase.co",
       "supabaseAnonKey": ""
-    }
+    },
+    "owner": "justinnewbold"
   }
 }
