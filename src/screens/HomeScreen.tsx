@@ -4,7 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
-import { loadProgress, UserProgress, levelInfo, getGems, getDailyProgress, getDailyChallengeStatus, markDailyChallengeComplete, addGems, loadSettings } from '../utils/storage';
+import { loadProgress, UserProgress, levelInfo, getGems, getDailyProgress, getDailyChallengeStatus, markDailyChallengeComplete, loadSettings } from '../utils/storage';
 import { getDailyChallenge, EXERCISES, SONG_MELODIES } from '../utils/scales';
 
 export default function HomeScreen() {
@@ -21,15 +21,8 @@ export default function HomeScreen() {
     const [p, g, d, cs, s] = await Promise.all([
       loadProgress(), getGems(), getDailyProgress(), getDailyChallengeStatus(), loadSettings()
     ]);
-    setProgress(p);
-    setGems(g);
-    setDaily(d);
-    setChallengeStatus(cs);
-    setSettings(s);
-    // Show notification prompt if not enabled and user has done 2+ sessions
-    if (!s.notificationsEnabled && p.totalSessions >= 2) {
-      setShowNotifPrompt(true);
-    }
+    setProgress(p); setGems(g); setDaily(d); setChallengeStatus(cs); setSettings(s);
+    if (!s.notificationsEnabled && p.totalSessions >= 2) setShowNotifPrompt(true);
   }, []);
 
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
@@ -50,20 +43,18 @@ export default function HomeScreen() {
   const handleEnableNotifs = async () => {
     if (Platform.OS === 'web' && 'Notification' in window) {
       const perm = await Notification.requestPermission();
-      if (perm === 'granted') {
-        new Notification('Voice Trainer 🎤', { body: 'Daily practice reminders are on!' });
-      }
+      if (perm === 'granted') new Notification('Voice Trainer 🎤', { body: 'Daily practice reminders are on!' });
     }
     setShowNotifPrompt(false);
   };
 
   const quickActions = [
     { label: 'Warmup', icon: 'flame' as const, color: '#f97316', route: '/(tabs)/warmup', desc: 'Prep your voice' },
-    { label: 'Pitch', icon: 'mic' as const, color: COLORS.primary, route: '/(tabs)/pitch', desc: 'Real-time detection' },
+    { label: 'Pitch', icon: 'mic' as const, color: COLORS.primary, route: '/(tabs)/pitch', desc: 'Real-time pitch' },
+    { label: 'Key', icon: 'musical-note' as const, color: '#f59e0b', route: '/(tabs)/key', desc: 'Find your key' },
     { label: 'Scales', icon: 'musical-notes' as const, color: '#06b6d4', route: '/(tabs)/scales', desc: 'Guided exercises' },
-    { label: 'Songs', icon: 'headset' as const, color: '#ec4899', route: '/(tabs)/songs', desc: '25 songs to master' },
+    { label: 'Songs', icon: 'headset' as const, color: '#ec4899', route: '/(tabs)/songs', desc: '25 songs' },
     { label: 'Coach', icon: 'chatbubble-ellipses' as const, color: '#a78bfa', route: '/(tabs)/coach', desc: 'AI vocal coaching' },
-    { label: 'Stats', icon: 'bar-chart' as const, color: '#34d399', route: '/(tabs)/progress', desc: 'Your progress' },
   ];
 
   return (
@@ -75,16 +66,13 @@ export default function HomeScreen() {
             <Text style={styles.subtitle}>{li ? `${li.emoji} ${li.label}` : 'Welcome!'}</Text>
           </View>
           <View style={styles.headerRight}>
-            <View style={styles.gemsContainer}>
-              <Text style={styles.gemsText}>💎 {gems}</Text>
-            </View>
+            <View style={styles.gemsContainer}><Text style={styles.gemsText}>💎 {gems}</Text></View>
             <TouchableOpacity onPress={() => router.push('/(tabs)/settings')} style={styles.settingsBtn}>
               <Ionicons name="settings-outline" size={20} color={COLORS.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* XP bar */}
         {progress && li && (
           <View style={styles.xpContainer}>
             <View style={styles.xpBar}>
@@ -94,31 +82,25 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Stats strip */}
         <View style={styles.statsStrip}>
-          <View style={styles.statItem}>
-            <Text style={styles.statVal}>{progress?.currentStreak || 0}🔥</Text>
-            <Text style={styles.statLab}>Streak</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statVal}>{progress?.totalSessions || 0}</Text>
-            <Text style={styles.statLab}>Sessions</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statVal}>{progress?.avgAccuracy || 0}%</Text>
-            <Text style={styles.statLab}>Accuracy</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statVal}>{progress?.totalMinutes || 0}</Text>
-            <Text style={styles.statLab}>Minutes</Text>
-          </View>
+          {[
+            { val: `${progress?.currentStreak || 0}🔥`, lab: 'Streak' },
+            { val: progress?.totalSessions || 0, lab: 'Sessions' },
+            { val: `${progress?.avgAccuracy || 0}%`, lab: 'Accuracy' },
+            { val: progress?.totalMinutes || 0, lab: 'Minutes' },
+          ].map((s, i) => (
+            <React.Fragment key={s.lab}>
+              {i > 0 && <View style={styles.statDivider} />}
+              <View style={styles.statItem}>
+                <Text style={styles.statVal}>{s.val}</Text>
+                <Text style={styles.statLab}>{s.lab}</Text>
+              </View>
+            </React.Fragment>
+          ))}
         </View>
       </LinearGradient>
 
-      {/* Daily Goal Progress */}
+      {/* Daily Goal */}
       <View style={styles.section}>
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Today's Goal</Text>
@@ -252,7 +234,7 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, backgroundColor: '#2A2A50' },
   section: { margin: 16, marginBottom: 0, backgroundColor: '#13132A', borderRadius: BORDER_RADIUS.lg, padding: 16, borderWidth: 1, borderColor: '#2A2A50' },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: COLORS.primaryLight, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: COLORS.primaryLight, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   seeAll: { fontSize: 13, color: COLORS.primary },
   goalXpText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600' },
   goalBar: { height: 10, backgroundColor: '#2A2A50', borderRadius: 5, overflow: 'hidden', marginBottom: 6 },
