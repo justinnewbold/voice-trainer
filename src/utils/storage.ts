@@ -13,6 +13,7 @@ export interface SessionResult {
   notesHit?: number;
   totalNotes?: number;
   streak?: number;
+  combo?: number;
 }
 
 export interface UserProgress {
@@ -36,6 +37,15 @@ export interface VocalRange {
   testedAt: number;
 }
 
+export interface AppSettings {
+  notificationsEnabled: boolean;
+  reminderHour: number; // 0-23
+  dailyGoalXP: number;
+  theme: 'dark' | 'purple' | 'midnight';
+  metronomeVolume: number; // 0-1
+  droneVolume: number; // 0-1
+}
+
 // ─── Keys ───────────────────────────────────────────────────────────────────
 const PROGRESS_KEY = 'vt_progress_v1';
 const RANGE_KEY = 'vt_range';
@@ -47,10 +57,22 @@ const DAILY_KEY = 'vt_daily_v1';
 const CALENDAR_KEY = 'vt_calendar_v1';
 const BESTS_KEY = 'vt_bests_v1';
 const UNLOCKS_KEY = 'vt_unlocks_v1';
+const SETTINGS_KEY = 'vt_settings_v1';
+const DAILY_CHALLENGE_KEY = 'vt_daily_challenge_v1';
+const COACH_HISTORY_KEY = 'vt_coach_history_v1';
 
 export const defaultProgress: UserProgress = {
   totalSessions: 0, totalMinutes: 0, currentStreak: 0, longestStreak: 0,
   avgAccuracy: 0, xp: 0, level: 'beginner', sessions: [], lastDate: null, completedIds: [],
+};
+
+export const defaultSettings: AppSettings = {
+  notificationsEnabled: false,
+  reminderHour: 18,
+  dailyGoalXP: 100,
+  theme: 'dark',
+  metronomeVolume: 0.7,
+  droneVolume: 0.5,
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -79,7 +101,7 @@ export async function saveSession(session: SessionResult): Promise<UserProgress 
   else { p.currentStreak = 1; }
   if (p.currentStreak > p.longestStreak) p.longestStreak = p.currentStreak;
 
-  p.sessions = [session, ...(p.sessions || [])].slice(0, 50);
+  p.sessions = [session, ...(p.sessions || [])].slice(0, 100);
   p.totalSessions = (p.totalSessions || 0) + 1;
   p.totalMinutes = (p.totalMinutes || 0) + Math.floor(session.duration / 60);
   p.lastDate = today;
@@ -101,12 +123,18 @@ export async function saveSession(session: SessionResult): Promise<UserProgress 
   updateDailyProgress(xpGained).catch(() => {});
   markCalendarDay(xpGained).catch(() => {});
   updateBest(session.exerciseId, session.accuracy, session.score || 0).catch(() => {});
+  checkAchievements(p, session).catch(() => {});
 
   return { ...p, xpGained };
 }
 
 export async function clearProgress(): Promise<void> {
   await setItem(PROGRESS_KEY, JSON.stringify(defaultProgress));
+  await setItem(GEMS_KEY, '0');
+  await setItem(ACHIEVEMENTS_KEY, '[]');
+  await setItem(BESTS_KEY, '{}');
+  await setItem(CALENDAR_KEY, '{}');
+  await setItem(DAILY_CHALLENGE_KEY, '{}');
 }
 
 // ─── Vocal Range ────────────────────────────────────────────────────────────
@@ -128,7 +156,19 @@ export async function markOnboardingComplete(): Promise<void> {
   await setItem(ONBOARDED_KEY, 'true');
 }
 
-// ─── Theme ──────────────────────────────────────────────────────────────────
+// ─── Settings ────────────────────────────────────────────────────────────────
+export async function loadSettings(): Promise<AppSettings> {
+  const raw = await getItem(SETTINGS_KEY);
+  if (raw) { try { return { ...defaultSettings, ...JSON.parse(raw) }; } catch {} }
+  return { ...defaultSettings };
+}
+export async function saveSettings(settings: AppSettings): Promise<void> {
+  await setItem(SETTINGS_KEY, JSON.stringify(settings));
+  // Keep legacy theme key in sync
+  await setItem(THEME_KEY, settings.theme);
+}
+
+// ─── Theme (legacy) ─────────────────────────────────────────────────────────
 export async function getTheme(): Promise<string> {
   return (await getItem(THEME_KEY)) || 'dark';
 }
@@ -160,12 +200,18 @@ export const ACHIEVEMENT_DEFS = [
   { id: 'first_note', name: 'First Note', desc: 'Complete your first session', icon: '🎵', gems: 10, check: (p: UserProgress) => p.totalSessions >= 1 },
   { id: 'sessions_5', name: 'Warming Up', desc: 'Complete 5 sessions', icon: '🔥', gems: 20, check: (p: UserProgress) => p.totalSessions >= 5 },
   { id: 'sessions_25', name: 'Getting Serious', desc: 'Complete 25 sessions', icon: '💪', gems: 50, check: (p: UserProgress) => p.totalSessions >= 25 },
+  { id: 'sessions_100', name: 'Voice Master', desc: 'Complete 100 sessions', icon: '👑', gems: 200, check: (p: UserProgress) => p.totalSessions >= 100 },
   { id: 'acc_80', name: 'On Pitch', desc: 'Score 80%+ accuracy', icon: '🎯', gems: 15, check: (_p: UserProgress, s?: SessionResult) => (s?.accuracy || 0) >= 80 },
   { id: 'acc_95', name: 'Perfect Pitch', desc: 'Score 95%+ accuracy', icon: '⭐', gems: 50, check: (_p: UserProgress, s?: SessionResult) => (s?.accuracy || 0) >= 95 },
   { id: 'streak_3', name: 'Hat Trick', desc: '3-day practice streak', icon: '🎩', gems: 25, check: (p: UserProgress) => p.currentStreak >= 3 },
   { id: 'streak_7', name: 'Weekly Warrior', desc: '7-day practice streak', icon: '⚡', gems: 75, check: (p: UserProgress) => p.currentStreak >= 7 },
+  { id: 'streak_30', name: 'Monthly Legend', desc: '30-day practice streak', icon: '🏆', gems: 300, check: (p: UserProgress) => p.currentStreak >= 30 },
   { id: 'xp_1000', name: 'Intermediate', desc: 'Reach 1,000 XP', icon: '🎵', gems: 30, check: (p: UserProgress) => p.xp >= 1000 },
   { id: 'xp_5000', name: 'Advanced Singer', desc: 'Reach 5,000 XP', icon: '🌟', gems: 100, check: (p: UserProgress) => p.xp >= 5000 },
+  { id: 'combo_10', name: 'Combo King', desc: 'Hit a 10-note combo', icon: '🔥', gems: 30, check: (_p: UserProgress, s?: SessionResult) => (s?.combo || 0) >= 10 },
+  { id: 'songs_5', name: 'Song Bird', desc: 'Complete 5 different songs', icon: '🎶', gems: 40, check: (p: UserProgress) => p.completedIds.filter(id => id.startsWith('s')).length >= 5 },
+  { id: 'all_beginner', name: 'Foundations', desc: 'Complete all beginner exercises', icon: '🏅', gems: 60, check: (p: UserProgress) => ['b1','b2','b3','b4','b5'].every(id => p.completedIds.includes(id)) },
+  { id: 'daily_7', name: 'Challenge Seeker', desc: 'Complete 7 daily challenges', icon: '📅', gems: 80, check: (p: UserProgress) => (p as any).dailyChallengesCompleted >= 7 },
 ];
 
 export async function getAchievements(): Promise<{ id: string; earnedAt: number }[]> {
@@ -177,14 +223,17 @@ export async function getAchievements(): Promise<{ id: string; earnedAt: number 
 export async function checkAchievements(progress: UserProgress, session?: SessionResult) {
   const earned = await getAchievements();
   const earnedIds = new Set(earned.map(a => a.id));
+  const newOnes: string[] = [];
   for (const def of ACHIEVEMENT_DEFS) {
     if (earnedIds.has(def.id)) continue;
     if (def.check(progress, session)) {
       earned.push({ id: def.id, earnedAt: Date.now() });
       await addGems(def.gems);
+      newOnes.push(def.id);
     }
   }
   await setItem(ACHIEVEMENTS_KEY, JSON.stringify(earned));
+  return newOnes;
 }
 
 // Daily progress
@@ -202,6 +251,29 @@ export async function updateDailyProgress(xpGained: number) {
   daily.xp += xpGained;
   daily.sessions += 1;
   await setItem(DAILY_KEY, JSON.stringify(daily));
+}
+
+// Daily Challenge completion
+export async function getDailyChallengeStatus(): Promise<{ completedToday: boolean; totalCompleted: number }> {
+  const raw = await getItem(DAILY_CHALLENGE_KEY);
+  const data = raw ? JSON.parse(raw) : { completedDates: [], totalCompleted: 0 };
+  const today = new Date().toDateString();
+  return {
+    completedToday: (data.completedDates || []).includes(today),
+    totalCompleted: data.totalCompleted || 0,
+  };
+}
+
+export async function markDailyChallengeComplete(): Promise<void> {
+  const raw = await getItem(DAILY_CHALLENGE_KEY);
+  const data = raw ? JSON.parse(raw) : { completedDates: [], totalCompleted: 0 };
+  const today = new Date().toDateString();
+  if (!data.completedDates.includes(today)) {
+    data.completedDates = [today, ...data.completedDates].slice(0, 60);
+    data.totalCompleted = (data.totalCompleted || 0) + 1;
+    await setItem(DAILY_CHALLENGE_KEY, JSON.stringify(data));
+    await addGems(10);
+  }
 }
 
 // Calendar
@@ -261,4 +333,29 @@ export async function checkUnlocks(progress: UserProgress) {
   if (progress.xp >= 500 && !unlocks.includes('intermediate')) unlocks.push('intermediate');
   if (progress.xp >= 2500 && !unlocks.includes('advanced')) unlocks.push('advanced');
   await setItem(UNLOCKS_KEY, JSON.stringify(unlocks));
+}
+
+// Coach message history
+export interface CoachMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+export async function getCoachHistory(): Promise<CoachMessage[]> {
+  const raw = await getItem(COACH_HISTORY_KEY);
+  if (raw) { try { return JSON.parse(raw); } catch {} }
+  return [];
+}
+
+export async function saveCoachMessage(msg: CoachMessage): Promise<void> {
+  const history = await getCoachHistory();
+  history.push(msg);
+  // Keep last 50 messages
+  const trimmed = history.slice(-50);
+  await setItem(COACH_HISTORY_KEY, JSON.stringify(trimmed));
+}
+
+export async function clearCoachHistory(): Promise<void> {
+  await setItem(COACH_HISTORY_KEY, '[]');
 }
