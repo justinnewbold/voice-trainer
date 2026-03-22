@@ -23,6 +23,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} /> }} />
       <Tabs.Screen name="warmup" options={{ title: 'Warmup', tabBarIcon: ({ color, size }) => <Ionicons name="flame" size={size} color={color} /> }} />
       <Tabs.Screen name="pitch" options={{ title: 'Pitch', tabBarIcon: ({ color, size }) => <Ionicons name="mic" size={size} color={color} /> }} />
+      <Tabs.Screen name="key" options={{ title: 'Key', tabBarIcon: ({ color, size }) => <Ionicons name="musical-note" size={size} color={color} /> }} />
       <Tabs.Screen name="scales" options={{ title: 'Scales', tabBarIcon: ({ color, size }) => <Ionicons name="musical-notes" size={size} color={color} /> }} />
       <Tabs.Screen name="songs" options={{ title: 'Songs', tabBarIcon: ({ color, size }) => <Ionicons name="headset" size={size} color={color} /> }} />
       <Tabs.Screen name="coach" options={{ title: 'Coach', tabBarIcon: ({ color, size }) => <Ionicons name="chatbubble-ellipses" size={size} color={color} /> }} />
