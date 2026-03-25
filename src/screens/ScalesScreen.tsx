@@ -10,6 +10,7 @@ import Confetti from '../components/Confetti';
 import { usePitchDetection } from '../hooks/usePitchDetection';
 import { useReferenceTone } from '../hooks/useReferenceTone';
 import { useSoundEffects } from '../hooks/useSoundEffects';
+import { useHaptics } from '../hooks/useHaptics';
 import { EXERCISES, Exercise } from '../utils/scales';
 import { noteToFrequency, frequencyToNoteInfo } from '../utils/pitchUtils';
 import { saveSession, getBests } from '../utils/storage';
@@ -36,6 +37,7 @@ export default function ScalesScreen() {
   const { noteInfo, pitchHint, isListening, volume, color, startListening, stopListening } = usePitchDetection();
   const { playNote, playing: tonePlaying } = useReferenceTone();
   const { playNoteHit, playFanfare, playComplete, playCountdownBeep } = useSoundEffects();
+  const { hitNote, hitCombo, completeFanfare, countdownTick } = useHaptics();
 
   useEffect(() => { getBests().then(setBests); }, []);
 
@@ -59,6 +61,7 @@ export default function ScalesScreen() {
     const isMatch = noteInfo.note !== '-' && noteInfo.note === targetInfo.note && Math.abs(noteInfo.cents) < 30;
     if (isMatch) {
       playNoteHit();
+      hitNote();
       replayBuilderRef.current?.recordNoteResult({
         targetNote: targetInfo.note + targetInfo.octave, targetMidi: currentNote,
         sungNote: noteInfo.note + noteInfo.octave, cents: noteInfo.cents, hit: true,
@@ -79,6 +82,7 @@ export default function ScalesScreen() {
     for (let i = 3; i > 0; i--) {
       setCountdown(i);
       playCountdownBeep(i);
+      countdownTick(i);
       await new Promise(r => setTimeout(r, 1000));
     }
     setCountdown(0);
@@ -99,6 +103,7 @@ export default function ScalesScreen() {
     // Sound + confetti
     if (acc >= 80) {
       playFanfare();
+      completeFanfare();
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 2500);
     } else {
@@ -350,3 +355,4 @@ const styles = StyleSheet.create({
   stopBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.danger, paddingHorizontal: 24, paddingVertical: 12, borderRadius: BORDER_RADIUS.lg },
   stopText: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.bold, color: '#fff' },
 });
+
