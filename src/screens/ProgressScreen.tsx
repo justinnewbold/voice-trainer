@@ -24,27 +24,14 @@ export default function ProgressScreen() {
   useFocusEffect(useCallback(() => { fetch(); }, [fetch]));
   const onRefresh = async () => { setRefreshing(true); await fetch(); setRefreshing(false); };
 
-  const handleReset = () => {
-    Alert.alert('Reset Progress', 'Delete all training history?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Reset', style: 'destructive', onPress: async () => { await clearProgress(); fetch(); } },
-    ]);
-  };
-
   const li = progress ? levelInfo(progress.xp) : null;
 
   const accuracy7Day = () => {
     if (!progress?.sessions) return [];
     const days: Record<string, number[]> = {};
     const now = Date.now();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now - i * 86400000).toDateString();
-      days[d] = [];
-    }
-    progress.sessions.forEach(s => {
-      const d = new Date(s.date).toDateString();
-      if (d in days) days[d].push(s.accuracy);
-    });
+    for (let i = 6; i >= 0; i--) { const d = new Date(now - i * 86400000).toDateString(); days[d] = []; }
+    progress.sessions.forEach(s => { const d = new Date(s.date).toDateString(); if (d in days) days[d].push(s.accuracy); });
     return Object.entries(days).map(([date, accs]) => ({
       date: new Date(date).toLocaleDateString('en', { weekday: 'short' }),
       avg: accs.length > 0 ? Math.round(accs.reduce((a, b) => a + b, 0) / accs.length) : 0,
@@ -55,6 +42,36 @@ export default function ProgressScreen() {
   const weekData = accuracy7Day();
   const maxAcc = Math.max(...weekData.map(d => d.avg), 1);
 
+  // Find the next achievement to unlock (first unearned one)
+  const nextAchievement = ACHIEVEMENT_DEFS.find(def => !earned.includes(def.id));
+
+  // Estimate progress toward next achievement (for numeric checks)
+  function getNextAchievementProgress(): { current: number; target: number } | null {
+    if (!nextAchievement || !progress) return null;
+    // Map achievement id patterns to progress values
+    if (nextAchievement.id.startsWith('sessions_')) {
+      const target = parseInt(nextAchievement.id.split('_')[1]);
+      return { current: progress.totalSessions, target };
+    }
+    if (nextAchievement.id.startsWith('streak_')) {
+      const target = parseInt(nextAchievement.id.split('_')[1]);
+      return { current: progress.currentStreak, target };
+    }
+    if (nextAchievement.id.startsWith('xp_')) {
+      const target = parseInt(nextAchievement.id.split('_')[1]);
+      return { current: progress.xp, target };
+    }
+    if (nextAchievement.id === 'songs_5') {
+      return { current: progress.completedIds.filter(id => id.startsWith('s')).length, target: 5 };
+    }
+    if (nextAchievement.id === 'all_beginner') {
+      return { current: ['b1','b2','b3','b4','b5'].filter(id => progress.completedIds.includes(id)).length, target: 5 };
+    }
+    return null;
+  }
+
+  const nextProgress = getNextAchievementProgress();
+
   return (
     <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
       <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.header}>
@@ -62,7 +79,6 @@ export default function ProgressScreen() {
         <Text style={styles.subtitle}>💎 {gems} gems · {li?.emoji} {li?.label}</Text>
       </LinearGradient>
 
-      {/* Tab switcher */}
       <View style={styles.tabRow}>
         {(['overview', 'sessions', 'achievements'] as const).map(t => (
           <TouchableOpacity key={t} style={[styles.tab, activeTab === t && styles.tabActive]} onPress={() => setActiveTab(t)}>
@@ -73,7 +89,6 @@ export default function ProgressScreen() {
 
       {activeTab === 'overview' && (
         <>
-          {/* Stats grid */}
           <View style={styles.statsGrid}>
             {[
               { label: 'Sessions', value: progress?.totalSessions || 0, icon: '🎵' },
@@ -90,7 +105,6 @@ export default function ProgressScreen() {
             ))}
           </View>
 
-          {/* XP Progress */}
           {li && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Level Progress</Text>
@@ -105,7 +119,6 @@ export default function ProgressScreen() {
             </View>
           )}
 
-          {/* 7-day accuracy chart */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>7-Day Accuracy</Text>
             <View style={styles.barChart}>
@@ -122,7 +135,6 @@ export default function ProgressScreen() {
             </View>
           </View>
 
-          {/* Calendar heatmap */}
           {calDays.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Activity Calendar</Text>
@@ -130,9 +142,7 @@ export default function ProgressScreen() {
                 {calDays.map((d, i) => {
                   const intensity = d.xp === 0 ? 0 : d.xp < 50 ? 1 : d.xp < 100 ? 2 : d.xp < 200 ? 3 : 4;
                   const colors = ['#1E1E3A', '#2d1f6e', '#4c35b5', '#7c6af7', '#a78bfa'];
-                  return (
-                    <View key={i} style={[styles.calDay, { backgroundColor: colors[intensity] }, d.isToday && styles.calDayToday]} />
-                  );
+                  return <View key={i} style={[styles.calDay, { backgroundColor: colors[intensity] }, d.isToday && styles.calDayToday]} />;
                 })}
               </View>
               <View style={styles.calLegend}>
@@ -155,12 +165,10 @@ export default function ProgressScreen() {
           )}
           {progress?.sessions?.map(s => (
             <TouchableOpacity key={s.id} style={styles.sessionRow} onPress={() => setSelectedSession(s)}>
-              <View style={styles.sessionIcon}>
-                <Text>{s.type === 'song' ? '🎶' : s.type === 'warmup' ? '🔥' : s.type === 'freeform' ? '🎤' : '🎵'}</Text>
-              </View>
+              <View style={styles.sessionIcon}><Text>{s.type === 'song' ? '🎶' : s.type === 'warmup' ? '🔥' : '🎵'}</Text></View>
               <View style={styles.sessionInfo}>
                 <Text style={styles.sessionName}>{s.exerciseName}</Text>
-                <Text style={styles.sessionMeta}>{new Date(s.date).toLocaleDateString()} {new Date(s.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {Math.floor(s.duration / 60)}m {s.duration % 60}s</Text>
+                <Text style={styles.sessionMeta}>{new Date(s.date).toLocaleDateString()} {new Date(s.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {Math.floor(s.duration / 60)}m {s.duration % 60}s</Text>
               </View>
               <View style={styles.sessionRight}>
                 <View style={[styles.accBadge, { backgroundColor: s.accuracy >= 80 ? COLORS.success + '33' : s.accuracy >= 60 ? COLORS.warning + '33' : COLORS.danger + '33' }]}>
@@ -179,21 +187,48 @@ export default function ProgressScreen() {
           <View style={styles.achieveProgress}>
             <View style={[styles.achieveFill, { width: `${(earned.length / ACHIEVEMENT_DEFS.length) * 100}%` }]} />
           </View>
+
+          {/* Next to unlock highlight card */}
+          {nextAchievement && (
+            <View style={styles.nextAchieveCard}>
+              <View style={styles.nextAchieveHeader}>
+                <Text style={styles.nextAchieveBadge}>⬆ Up Next</Text>
+              </View>
+              <View style={styles.nextAchieveRow}>
+                <Text style={styles.nextAchieveIcon}>{nextAchievement.icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.nextAchieveName}>{nextAchievement.name}</Text>
+                  <Text style={styles.nextAchieveDesc}>{nextAchievement.desc}</Text>
+                  {nextProgress && (
+                    <>
+                      <View style={styles.nextProgressBar}>
+                        <View style={[styles.nextProgressFill, { width: `${Math.min(100, (nextProgress.current / nextProgress.target) * 100)}%` }]} />
+                      </View>
+                      <Text style={styles.nextProgressText}>{nextProgress.current} / {nextProgress.target}</Text>
+                    </>
+                  )}
+                </View>
+                <View style={styles.nextAchieveReward}>
+                  <Text style={styles.nextAchieveGems}>💎 {nextAchievement.gems}</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           {ACHIEVEMENT_DEFS.map(def => {
             const isEarned = earned.includes(def.id);
+            const isNext = nextAchievement?.id === def.id;
             return (
-              <View key={def.id} style={[styles.achieveRow, !isEarned && styles.achieveRowLocked]}>
-                <Text style={[styles.achieveIcon, !isEarned && styles.lockedText]}>{def.icon}</Text>
+              <View key={def.id} style={[styles.achieveRow, !isEarned && !isNext && styles.achieveRowLocked]}>
+                <Text style={styles.achieveIcon}>{def.icon}</Text>
                 <View style={styles.achieveInfo}>
-                  <Text style={[styles.achieveName, !isEarned && styles.lockedText]}>{def.name}</Text>
+                  <Text style={[styles.achieveName, !isEarned && { color: COLORS.textSecondary }]}>{def.name}</Text>
                   <Text style={styles.achieveDesc}>{def.desc}</Text>
                 </View>
                 <View style={styles.achieveGems}>
-                  {isEarned ? (
-                    <Ionicons name="checkmark-circle" size={22} color={COLORS.success} />
-                  ) : (
-                    <Text style={styles.achieveGemsText}>💎 {def.gems}</Text>
-                  )}
+                  {isEarned
+                    ? <Ionicons name="checkmark-circle" size={22} color={COLORS.success} />
+                    : <Text style={styles.achieveGemsText}>💎 {def.gems}</Text>}
                 </View>
               </View>
             );
@@ -203,7 +238,6 @@ export default function ProgressScreen() {
 
       <View style={{ height: 40 }} />
 
-      {/* Session Detail Modal */}
       <Modal visible={!!selectedSession} transparent animationType="slide" onRequestClose={() => setSelectedSession(null)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -216,26 +250,10 @@ export default function ProgressScreen() {
             {selectedSession && (
               <>
                 <View style={styles.modalStats}>
-                  <View style={styles.modalStat}>
-                    <Text style={styles.modalStatVal}>{selectedSession.accuracy}%</Text>
-                    <Text style={styles.modalStatLabel}>Accuracy</Text>
-                  </View>
-                  <View style={styles.modalStat}>
-                    <Text style={styles.modalStatVal}>{Math.floor(selectedSession.duration / 60)}m {selectedSession.duration % 60}s</Text>
-                    <Text style={styles.modalStatLabel}>Duration</Text>
-                  </View>
-                  {selectedSession.score != null && (
-                    <View style={styles.modalStat}>
-                      <Text style={styles.modalStatVal}>{selectedSession.score}</Text>
-                      <Text style={styles.modalStatLabel}>Score</Text>
-                    </View>
-                  )}
-                  {selectedSession.notesHit != null && (
-                    <View style={styles.modalStat}>
-                      <Text style={styles.modalStatVal}>{selectedSession.notesHit}/{selectedSession.totalNotes}</Text>
-                      <Text style={styles.modalStatLabel}>Notes Hit</Text>
-                    </View>
-                  )}
+                  <View style={styles.modalStat}><Text style={styles.modalStatVal}>{selectedSession.accuracy}%</Text><Text style={styles.modalStatLabel}>Accuracy</Text></View>
+                  <View style={styles.modalStat}><Text style={styles.modalStatVal}>{Math.floor(selectedSession.duration / 60)}m {selectedSession.duration % 60}s</Text><Text style={styles.modalStatLabel}>Duration</Text></View>
+                  {selectedSession.score != null && <View style={styles.modalStat}><Text style={styles.modalStatVal}>{selectedSession.score}</Text><Text style={styles.modalStatLabel}>Score</Text></View>}
+                  {selectedSession.notesHit != null && <View style={styles.modalStat}><Text style={styles.modalStatVal}>{selectedSession.notesHit}/{selectedSession.totalNotes}</Text><Text style={styles.modalStatLabel}>Notes Hit</Text></View>}
                 </View>
                 <Text style={styles.modalDate}>Completed {new Date(selectedSession.date).toLocaleDateString()} at {new Date(selectedSession.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
                 <View style={[styles.accBadgeLarge, { backgroundColor: selectedSession.accuracy >= 80 ? COLORS.success + '22' : selectedSession.accuracy >= 60 ? COLORS.warning + '22' : COLORS.danger + '22' }]}>
@@ -301,10 +319,22 @@ const styles = StyleSheet.create({
   accTextLarge: { fontSize: 16, fontWeight: '700' },
   achieveProgress: { height: 6, backgroundColor: '#2A2A50', borderRadius: 3, overflow: 'hidden', marginBottom: 16 },
   achieveFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 },
+  // Next achievement highlight
+  nextAchieveCard: { backgroundColor: '#1a1030', borderRadius: BORDER_RADIUS.lg, borderWidth: 1.5, borderColor: COLORS.primaryLight + '66', padding: 14, marginBottom: 14 },
+  nextAchieveHeader: { marginBottom: 8 },
+  nextAchieveBadge: { fontSize: 11, color: COLORS.primaryLight, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  nextAchieveRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  nextAchieveIcon: { fontSize: 28 },
+  nextAchieveName: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 2 },
+  nextAchieveDesc: { fontSize: 12, color: COLORS.textMuted, marginBottom: 6 },
+  nextProgressBar: { height: 6, backgroundColor: '#2A2A50', borderRadius: 3, overflow: 'hidden', marginBottom: 3 },
+  nextProgressFill: { height: '100%', backgroundColor: COLORS.primaryLight, borderRadius: 3 },
+  nextProgressText: { fontSize: 11, color: COLORS.primaryLight, fontWeight: '600' },
+  nextAchieveReward: { alignItems: 'center' },
+  nextAchieveGems: { fontSize: 13, color: '#f9a8d4', fontWeight: '700' },
   achieveRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#2A2A50' },
-  achieveRowLocked: { opacity: 0.45 },
-  achieveIcon: { fontSize: 24, marginRight: 12 },
-  lockedText: { filter: 'grayscale(1)' } as any,
+  achieveRowLocked: { opacity: 0.4 },
+  achieveIcon: { fontSize: 22, marginRight: 12 },
   achieveInfo: { flex: 1 },
   achieveName: { fontSize: 14, fontWeight: '700', color: COLORS.text },
   achieveDesc: { fontSize: 12, color: COLORS.textMuted },
