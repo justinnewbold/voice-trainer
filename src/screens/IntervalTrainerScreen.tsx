@@ -6,6 +6,7 @@ import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { usePitchDetection } from '../hooks/usePitchDetection';
 import { useReferenceTone } from '../hooks/useReferenceTone';
 import { useSoundEffects } from '../hooks/useSoundEffects';
+import { useHaptics } from '../hooks/useHaptics';
 import Confetti from '../components/Confetti';
 
 // ── Interval definitions ──────────────────────────────────────────────────────
@@ -85,6 +86,7 @@ export default function IntervalTrainerScreen() {
   const { noteInfo, startListening, stopListening, isListening } = usePitchDetection();
   const { playTone } = useReferenceTone();
   const { playNoteHit, playMiss, playFanfare, playComplete } = useSoundEffects();
+  const { hitNote, miss: hapticMiss, completeFanfare } = useHaptics();
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -151,11 +153,13 @@ export default function IntervalTrainerScreen() {
 
     if (correct) {
       playNoteHit();
+      hitNote();
       pulseCorrect();
       setScore(s => s + (10 + streak * 2));
       setStreak(s => s + 1);
     } else {
       playMiss();
+      hapticMiss();
       setStreak(0);
     }
     setHistory(h => [...h, { interval: currentInterval!.semitones, correct }]);
@@ -168,7 +172,7 @@ export default function IntervalTrainerScreen() {
       const finalScore = score + (answered === 'correct' ? 10 : 0);
       const correctCount = history.filter(h => h.correct).length + (answered === 'correct' ? 1 : 0);
       const pct = Math.round((correctCount / totalRounds) * 100);
-      if (pct >= 80) { playFanfare(); setShowConfetti(true); setTimeout(() => setShowConfetti(false), 2500); }
+      if (pct >= 80) { playFanfare(); completeFanfare(); setShowConfetti(true); setTimeout(() => setShowConfetti(false), 2500); }
       else playComplete();
       setStarted(false);
       return;
@@ -526,3 +530,4 @@ const styles = StyleSheet.create({
   backBtnFull: { padding: 14, alignItems: 'center' },
   backBtnText: { color: COLORS.textSecondary, fontSize: 14 },
 });
+
