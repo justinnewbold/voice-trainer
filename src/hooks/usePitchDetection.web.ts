@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { detectPitch, createSmoother, frequencyToNoteInfo, getPitchHint, getPitchColor, NoteInfo } from '../utils/pitchUtils';
 
 const BUFFER_SIZE = 4096;
@@ -16,18 +17,13 @@ export interface PitchState {
   error: string | null;
 }
 
+const SILENT_NOTE: NoteInfo = { note: '-', octave: 0, frequency: 0, cents: 0, midiNote: 0 };
+
 export function usePitchDetection() {
   const [state, setState] = useState<PitchState>({
-    frequency: -1,
-    noteInfo: { note: '-', octave: 0, frequency: 0, cents: 0, midiNote: 0 },
-    pitchHint: 'silent',
-    color: '#475569',
-    isListening: false,
-    hasPermission: null,
-    volume: 0,
-    confidence: 0,
-    isStable: false,
-    error: null,
+    frequency: -1, noteInfo: SILENT_NOTE, pitchHint: 'silent',
+    color: '#475569', isListening: false, hasPermission: null,
+    volume: 0, confidence: 0, isStable: false, error: null,
   });
 
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -38,9 +34,17 @@ export function usePitchDetection() {
   const bufferRef = useRef(new Float32Array(BUFFER_SIZE));
   const smootherRef = useRef(createSmoother());
   const isActiveRef = useRef(false);
+  const isPausedRef = useRef(false);
+
+  const silenceState = useCallback(() => {
+    setState(prev => ({
+      ...prev, frequency: -1, noteInfo: SILENT_NOTE,
+      pitchHint: 'silent', color: '#475569', volume: 0, confidence: 0, isStable: false,
+    }));
+  }, []);
 
   const analyze = useCallback(() => {
-    if (!analyserRef.current || !isActiveRef.current) return;
+    if (!analyserRef.current || !isActiveRef.current || isPausedRef.current) return;
     analyserRef.current.getFloatTimeDomainData(bufferRef.current);
 
     let sum = 0;
@@ -62,22 +66,39 @@ export function usePitchDetection() {
         }));
       } else {
         setState(prev => ({
-          ...prev, frequency: -1,
-          noteInfo: { note: '-', octave: 0, frequency: 0, cents: 0, midiNote: 0 },
-          pitchHint: 'silent', color: '#475569',
+          ...prev, frequency: -1, noteInfo: SILENT_NOTE, pitchHint: 'silent', color: '#475569',
           volume: Math.min(1, volume * 5), confidence: 0, isStable: false,
         }));
       }
     } else {
       setState(prev => ({
-        ...prev, frequency: -1,
-        noteInfo: { note: '-', octave: 0, frequency: 0, cents: 0, midiNote: 0 },
+        ...prev, frequency: -1, noteInfo: SILENT_NOTE,
         pitchHint: 'silent', color: '#475569', volume: 0, confidence: 0, isStable: false,
       }));
     }
 
     rafRef.current = requestAnimationFrame(analyze);
   }, []);
+
+  // ── AppState: pause RAF when backgrounded, resume when active ──
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        isPausedRef.current = true;
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
+        silenceState();
+      } else if (nextState === 'active' && isActiveRef.current) {
+        isPausedRef.current = false;
+        rafRef.current = requestAnimationFrame(analyze);
+      }
+    };
+
+    const sub = AppState.addEventListener('change', handleAppStateChange);
+    return () => sub.remove();
+  }, [analyze, silenceState]);
 
   const requestPermission = useCallback(async (): Promise<boolean> => {
     try {
@@ -114,6 +135,7 @@ export function usePitchDetection() {
       streamRef.current = stream;
       smootherRef.current = createSmoother();
       isActiveRef.current = true;
+      isPausedRef.current = false;
 
       setState(prev => ({ ...prev, isListening: true, hasPermission: true, error: null }));
       rafRef.current = requestAnimationFrame(analyze);
@@ -127,15 +149,14 @@ export function usePitchDetection() {
 
   const stopListening = useCallback(() => {
     isActiveRef.current = false;
+    isPausedRef.current = false;
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     if (sourceRef.current) { sourceRef.current.disconnect(); sourceRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null; }
     analyserRef.current = null;
-
     setState(prev => ({
-      ...prev, isListening: false, frequency: -1,
-      noteInfo: { note: '-', octave: 0, frequency: 0, cents: 0, midiNote: 0 },
+      ...prev, isListening: false, frequency: -1, noteInfo: SILENT_NOTE,
       pitchHint: 'silent', color: '#475569', volume: 0, confidence: 0, isStable: false,
     }));
   }, []);
