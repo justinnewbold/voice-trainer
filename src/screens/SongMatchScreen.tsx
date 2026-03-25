@@ -11,6 +11,7 @@ import { SONG_MELODIES, SongMelody } from '../utils/scales';
 import { noteToFrequency, frequencyToNoteInfo } from '../utils/pitchUtils';
 import { saveSession, getBests, getDailyChallengeStatus, markDailyChallengeComplete, getDailyChallenge } from '../utils/storage';
 import { createReplayBuilder, saveReplay, SessionReplay } from '../utils/sessionReplay';
+import { useHaptics } from '../hooks/useHaptics';
 
 const LEVEL_COLORS: Record<string, string> = { beginner: COLORS.success, intermediate: COLORS.warning, advanced: COLORS.danger };
 type LevelFilter = 'all' | 'beginner' | 'intermediate' | 'advanced';
@@ -33,6 +34,7 @@ export default function SongMatchScreen() {
   const replayBuilderRef = useRef<ReturnType<typeof createReplayBuilder> | null>(null);
   const noteStartRef = useRef<number>(0);
   const { noteInfo, pitchHint, isListening, volume, color, startListening, stopListening } = usePitchDetection();
+  const { hitNote, hitCombo, completeFanfare, miss } = useHaptics();
 
   useFocusEffect(useCallback(() => { getBests().then(setBests); }, []));
 
@@ -64,6 +66,8 @@ export default function SongMatchScreen() {
         sungNote: noteInfo.note + noteInfo.octave, cents: noteInfo.cents, hit: true,
         timeToHit: Date.now() - noteStartRef.current,
       });
+      hitNote();
+      if (newCombo % 5 === 0) hitCombo();
       setScore(s => s + points);
       setCombo(newCombo);
       setResults(prev => [...prev, 100]);
@@ -94,6 +98,8 @@ export default function SongMatchScreen() {
     await stopListening();
     const duration = startRef.current ? Math.floor((Date.now() - startRef.current.getTime()) / 1000) : 0;
     const acc = results.length > 0 ? Math.round(results.reduce((a, b) => a + b, 0) / results.length) : 0;
+
+    if (acc >= 80) completeFanfare();
 
     if (selected) {
       // Record remaining notes as misses
@@ -343,3 +349,4 @@ const styles = StyleSheet.create({
   backBtnFull: { margin: 16, marginTop: 0, padding: 14, alignItems: 'center' },
   backBtnText: { color: COLORS.textSecondary, fontSize: 14 },
 });
+
