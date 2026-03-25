@@ -5,14 +5,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import PitchMeter from '../components/PitchMeter';
+import ReplayGraph from '../components/ReplayGraph';
 import { usePitchDetection } from '../hooks/usePitchDetection';
 import { SONG_MELODIES, SongMelody } from '../utils/scales';
 import { noteToFrequency, frequencyToNoteInfo } from '../utils/pitchUtils';
 import { saveSession, getBests, getDailyChallengeStatus, markDailyChallengeComplete, getDailyChallenge } from '../utils/storage';
+import { createReplayBuilder, saveReplay, SessionReplay } from '../utils/sessionReplay';
 
 const LEVEL_COLORS: Record<string, string> = { beginner: COLORS.success, intermediate: COLORS.warning, advanced: COLORS.danger };
 type LevelFilter = 'all' | 'beginner' | 'intermediate' | 'advanced';
-type GenreFilter = string;
 
 const ALL_GENRES = ['All', ...Array.from(new Set(SONG_MELODIES.map(s => s.genre))).sort()];
 
@@ -25,14 +26,15 @@ export default function SongMatchScreen() {
   const [combo, setCombo] = useState(0);
   const [countdown, setCountdown] = useState(0);
   const [levelFilter, setLevelFilter] = useState<LevelFilter>('all');
-  const [genreFilter, setGenreFilter] = useState<GenreFilter>('All');
+  const [genreFilter, setGenreFilter] = useState('All');
   const [bests, setBests] = useState<Record<string, any>>({});
+  const [replay, setReplay] = useState<SessionReplay | null>(null);
   const startRef = useRef<Date | null>(null);
+  const replayBuilderRef = useRef<ReturnType<typeof createReplayBuilder> | null>(null);
+  const noteStartRef = useRef<number>(0);
   const { noteInfo, pitchHint, isListening, volume, color, startListening, stopListening } = usePitchDetection();
 
-  useFocusEffect(useCallback(() => {
-    getBests().then(setBests);
-  }, []));
+  useFocusEffect(useCallback(() => { getBests().then(setBests); }, []));
 
   const currentSongNote = selected?.notes[noteIdx];
   const filteredSongs = SONG_MELODIES.filter(s => {
@@ -44,22 +46,40 @@ export default function SongMatchScreen() {
   useEffect(() => {
     if (!isRunning || !selected || !currentSongNote || currentSongNote.midi === 0) return;
     const targetInfo = frequencyToNoteInfo(noteToFrequency(currentSongNote.midi));
+
+    // Sample pitch
+    if (noteInfo.note !== '-' && noteInfo.frequency > 0 && replayBuilderRef.current) {
+      replayBuilderRef.current.addSample({
+        note: noteInfo.note, octave: noteInfo.octave, cents: noteInfo.cents, freq: noteInfo.frequency,
+        targetNote: targetInfo.note + targetInfo.octave, targetMidi: currentSongNote.midi, hit: false,
+      });
+    }
+
     const isMatch = noteInfo.note !== '-' && noteInfo.note === targetInfo.note && Math.abs(noteInfo.cents) < 30;
     if (isMatch) {
       const newCombo = combo + 1;
       const points = 100 + (newCombo > 1 ? newCombo * 10 : 0);
+      replayBuilderRef.current?.recordNoteResult({
+        targetNote: targetInfo.note + targetInfo.octave, targetMidi: currentSongNote.midi,
+        sungNote: noteInfo.note + noteInfo.octave, cents: noteInfo.cents, hit: true,
+        timeToHit: Date.now() - noteStartRef.current,
+      });
       setScore(s => s + points);
       setCombo(newCombo);
       setResults(prev => [...prev, 100]);
       const next = noteIdx + 1;
-      if (next >= selected.notes.length) { finishSong(); return; }
+      if (next >= selected.notes.length) { finishSong(newCombo); return; }
+      noteStartRef.current = Date.now();
       setNoteIdx(next);
     }
   }, [noteInfo, isRunning]);
 
   const startSong = async () => {
+    setReplay(null);
     setCountdown(3);
     for (let i = 3; i > 0; i--) { await new Promise(r => setTimeout(r, 1000)); setCountdown(i - 1); }
+    replayBuilderRef.current = createReplayBuilder(selected!.name, 'song');
+    noteStartRef.current = Date.now();
     await startListening();
     startRef.current = new Date();
     setIsRunning(true);
@@ -69,17 +89,33 @@ export default function SongMatchScreen() {
     setCombo(0);
   };
 
-  const finishSong = async () => {
+  const finishSong = async (finalCombo?: number) => {
     setIsRunning(false);
     await stopListening();
     const duration = startRef.current ? Math.floor((Date.now() - startRef.current.getTime()) / 1000) : 0;
     const acc = results.length > 0 ? Math.round(results.reduce((a, b) => a + b, 0) / results.length) : 0;
+
     if (selected) {
-      const saved = await saveSession({
+      // Record remaining notes as misses
+      if (replayBuilderRef.current) {
+        for (let i = results.length; i < selected.notes.filter(n => n.midi !== 0).length; i++) {
+          const note = selected.notes.filter(n => n.midi !== 0)[i];
+          const targetInfo = frequencyToNoteInfo(noteToFrequency(note.midi));
+          replayBuilderRef.current.recordNoteResult({
+            targetNote: targetInfo.note + targetInfo.octave, targetMidi: note.midi,
+            sungNote: '—', cents: 0, hit: false,
+          });
+        }
+        const builtReplay = replayBuilderRef.current.build(acc, score);
+        await saveReplay(builtReplay);
+        setReplay(builtReplay);
+      }
+
+      await saveSession({
         id: Date.now().toString(), date: Date.now(), exerciseId: selected.id, exerciseName: selected.name,
-        type: 'song', duration, accuracy: acc, score, combo,
+        type: 'song', duration, accuracy: acc, score, combo: finalCombo ?? combo,
       });
-      // Check daily challenge
+
       const challenge = getDailyChallenge();
       if (challenge.type === 'song' && challenge.exerciseId === selected.id && acc >= challenge.target) {
         const cs = await getDailyChallengeStatus();
@@ -89,6 +125,23 @@ export default function SongMatchScreen() {
     }
   };
 
+  // ── Replay ──
+  if (replay && selected) {
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+        <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.replayHeader}>
+          <Text style={styles.replayHeaderText}>🎶 Song Complete — {selected.emoji} {selected.name}</Text>
+        </LinearGradient>
+        <ReplayGraph
+          replay={replay}
+          onPracticeAgain={() => { setReplay(null); startSong(); }}
+          onClose={() => { setReplay(null); setSelected(null); }}
+        />
+      </View>
+    );
+  }
+
+  // ── Active song ──
   if (selected && (isRunning || countdown > 0)) {
     const currentNote = selected.notes[noteIdx];
     const targetInfo = currentNote && currentNote.midi !== 0 ? frequencyToNoteInfo(noteToFrequency(currentNote.midi)) : null;
@@ -116,10 +169,13 @@ export default function SongMatchScreen() {
               )}
               <PitchMeter noteInfo={noteInfo} color={color} volume={volume} pitchHint={pitchHint} />
               {combo > 2 && <Text style={styles.comboText}>🔥 {combo}x Combo!</Text>}
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${(noteIdx / selected.notes.length) * 100}%` }]} />
+              </View>
             </>
           )}
         </View>
-        <TouchableOpacity style={styles.stopBtn} onPress={finishSong}>
+        <TouchableOpacity style={styles.stopBtn} onPress={() => finishSong()}>
           <Ionicons name="stop-circle" size={20} color="#fff" />
           <Text style={styles.stopBtnText}>End Song</Text>
         </TouchableOpacity>
@@ -127,6 +183,7 @@ export default function SongMatchScreen() {
     );
   }
 
+  // ── Song detail ──
   if (selected) {
     const best = bests[selected.id];
     return (
@@ -141,22 +198,9 @@ export default function SongMatchScreen() {
         </LinearGradient>
         <ScrollView style={styles.songDetail}>
           <View style={styles.songMeta}>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Level</Text>
-              <Text style={[styles.metaValue, { color: LEVEL_COLORS[selected.level] }]}>{selected.level}</Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Notes</Text>
-              <Text style={styles.metaValue}>{selected.notes.filter(n => n.midi !== 0).length}</Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>BPM</Text>
-              <Text style={styles.metaValue}>{selected.bpm}</Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Genre</Text>
-              <Text style={styles.metaValue}>{selected.genre}</Text>
-            </View>
+            {[['Level', selected.level, LEVEL_COLORS[selected.level]], ['Notes', selected.notes.filter(n => n.midi !== 0).length.toString(), COLORS.text], ['BPM', selected.bpm.toString(), COLORS.text], ['Genre', selected.genre, COLORS.primaryLight]].map(([l, v, c]) => (
+              <View key={l} style={styles.metaItem}><Text style={styles.metaLabel}>{l}</Text><Text style={[styles.metaValue, { color: c as string, textTransform: 'capitalize' }]}>{v}</Text></View>
+            ))}
           </View>
           {best && (
             <View style={styles.bestCard}>
@@ -180,14 +224,13 @@ export default function SongMatchScreen() {
     );
   }
 
+  // ── Song list ──
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.header}>
         <Text style={styles.title}>🎶 Songs</Text>
         <Text style={styles.subtitle}>{SONG_MELODIES.length} songs to master</Text>
       </LinearGradient>
-
-      {/* Level filter */}
       <View style={styles.filterRow}>
         {(['all', 'beginner', 'intermediate', 'advanced'] as LevelFilter[]).map(l => (
           <TouchableOpacity key={l} style={[styles.filterChip, levelFilter === l && styles.filterChipActive]} onPress={() => setLevelFilter(l)}>
@@ -195,8 +238,6 @@ export default function SongMatchScreen() {
           </TouchableOpacity>
         ))}
       </View>
-
-      {/* Genre filter */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.genreRow} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
         {ALL_GENRES.map(g => (
           <TouchableOpacity key={g} style={[styles.genreChip, genreFilter === g && styles.genreChipActive]} onPress={() => setGenreFilter(g)}>
@@ -204,7 +245,6 @@ export default function SongMatchScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
-
       <FlatList
         data={filteredSongs}
         keyExtractor={s => s.id}
@@ -229,7 +269,7 @@ export default function SongMatchScreen() {
               <View style={styles.songCardRight}>
                 {best ? (
                   <View style={styles.bestMini}>
-                    <Text style={styles.bestMiniAcc}>{best.accuracy}%</Text>
+                    <Text style={[styles.bestMiniAcc, { color: best.accuracy >= 80 ? COLORS.success : '#F59E0B' }]}>{best.accuracy}%</Text>
                     <Text style={styles.bestMiniLabel}>best</Text>
                   </View>
                 ) : (
@@ -247,6 +287,8 @@ export default function SongMatchScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingTop: 56, paddingBottom: 16, paddingHorizontal: SPACING.lg },
+  replayHeader: { paddingTop: 56, paddingBottom: 12, paddingHorizontal: SPACING.lg },
+  replayHeaderText: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   title: { fontSize: 22, fontWeight: '700', color: COLORS.text },
   subtitle: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
@@ -272,23 +314,25 @@ const styles = StyleSheet.create({
   noteCount: { fontSize: 11, color: COLORS.textMuted },
   songCardRight: { alignItems: 'flex-end' },
   bestMini: { alignItems: 'center' },
-  bestMiniAcc: { fontSize: 16, fontWeight: '700', color: COLORS.success },
+  bestMiniAcc: { fontSize: 16, fontWeight: '700' },
   bestMiniLabel: { fontSize: 10, color: COLORS.textMuted },
-  exerciseContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.lg },
+  exerciseContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.lg, gap: 16 },
   countdown: { fontSize: 80, fontWeight: '800', color: COLORS.primary },
-  targetSection: { alignItems: 'center', marginBottom: 20 },
+  targetSection: { alignItems: 'center', marginBottom: 8 },
   targetLabel: { fontSize: 14, color: COLORS.textMuted, marginBottom: 4 },
   targetNote: { fontSize: 56, fontWeight: '800', color: COLORS.text },
   targetFreq: { fontSize: 14, color: COLORS.textSecondary },
   restLabel: { fontSize: 32, color: COLORS.textMuted },
-  comboText: { fontSize: 18, fontWeight: '700', color: '#f97316', marginTop: 8 },
+  comboText: { fontSize: 18, fontWeight: '700', color: '#f97316' },
+  progressBar: { width: '85%', height: 6, backgroundColor: '#2A2A50', borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 },
   stopBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, margin: 20, padding: 16, backgroundColor: COLORS.danger, borderRadius: BORDER_RADIUS.lg },
   stopBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   songDetail: { flex: 1 },
   songMeta: { flexDirection: 'row', justifyContent: 'space-around', padding: 20, backgroundColor: '#13132A', margin: 16, borderRadius: BORDER_RADIUS.lg, borderWidth: 1, borderColor: '#2A2A50' },
   metaItem: { alignItems: 'center' },
   metaLabel: { fontSize: 11, color: COLORS.textMuted, marginBottom: 4 },
-  metaValue: { fontSize: 16, fontWeight: '700', color: COLORS.text, textTransform: 'capitalize' },
+  metaValue: { fontSize: 16, fontWeight: '700' },
   bestCard: { margin: 16, marginTop: 0, backgroundColor: '#1a2a1a', borderRadius: BORDER_RADIUS.lg, padding: 14, borderWidth: 1, borderColor: COLORS.success + '44' },
   bestTitle: { fontSize: 13, fontWeight: '700', color: COLORS.success, marginBottom: 8 },
   bestRow: { flexDirection: 'row', gap: 16 },
