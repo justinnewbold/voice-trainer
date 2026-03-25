@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import PitchMeter from '../components/PitchMeter';
+import CountdownCircle from '../components/CountdownCircle';
 import ReplayGraph from '../components/ReplayGraph';
 import { usePitchDetection } from '../hooks/usePitchDetection';
+import { useReferenceTone } from '../hooks/useReferenceTone';
 import { EXERCISES, Exercise } from '../utils/scales';
 import { noteToFrequency, frequencyToNoteInfo } from '../utils/pitchUtils';
 import { saveSession, getBests } from '../utils/storage';
@@ -27,6 +29,7 @@ export default function ScalesScreen() {
   const replayBuilderRef = useRef<ReturnType<typeof createReplayBuilder> | null>(null);
   const noteStartRef = useRef<number>(0);
   const { noteInfo, pitchHint, isListening, volume, color, startListening, stopListening } = usePitchDetection();
+  const { playNote, playing: tonePlaying } = useReferenceTone();
 
   useEffect(() => { getBests().then(setBests); }, []);
 
@@ -36,30 +39,18 @@ export default function ScalesScreen() {
   useEffect(() => {
     if (!isRunning || !selected || !currentNote) return;
     const targetInfo = frequencyToNoteInfo(noteToFrequency(currentNote));
-
-    // Always sample pitch while listening
     if (noteInfo.note !== '-' && noteInfo.frequency > 0 && replayBuilderRef.current) {
       replayBuilderRef.current.addSample({
-        note: noteInfo.note,
-        octave: noteInfo.octave,
-        cents: noteInfo.cents,
-        freq: noteInfo.frequency,
-        targetNote: targetInfo.note + targetInfo.octave,
-        targetMidi: currentNote,
-        hit: false,
+        note: noteInfo.note, octave: noteInfo.octave, cents: noteInfo.cents, freq: noteInfo.frequency,
+        targetNote: targetInfo.note + targetInfo.octave, targetMidi: currentNote, hit: false,
       });
     }
-
     const isMatch = noteInfo.note !== '-' && noteInfo.note === targetInfo.note && Math.abs(noteInfo.cents) < 30;
     if (isMatch) {
-      const timeToHit = Date.now() - noteStartRef.current;
       replayBuilderRef.current?.recordNoteResult({
-        targetNote: targetInfo.note + targetInfo.octave,
-        targetMidi: currentNote,
-        sungNote: noteInfo.note + noteInfo.octave,
-        cents: noteInfo.cents,
-        hit: true,
-        timeToHit,
+        targetNote: targetInfo.note + targetInfo.octave, targetMidi: currentNote,
+        sungNote: noteInfo.note + noteInfo.octave, cents: noteInfo.cents, hit: true,
+        timeToHit: Date.now() - noteStartRef.current,
       });
       setResults(prev => [...prev, 100]);
       const next = noteIdx + 1;
@@ -71,13 +62,12 @@ export default function ScalesScreen() {
 
   const startExercise = async () => {
     setReplay(null);
-    setCountdown(3);
+    replayBuilderRef.current = createReplayBuilder(selected!.name, 'scale');
     for (let i = 3; i > 0; i--) {
+      setCountdown(i);
       await new Promise(r => setTimeout(r, 1000));
-      setCountdown(i - 1);
     }
     setCountdown(0);
-    replayBuilderRef.current = createReplayBuilder(selected!.name, 'scale');
     noteStartRef.current = Date.now();
     await startListening();
     startRef.current = new Date();
@@ -91,50 +81,32 @@ export default function ScalesScreen() {
     await stopListening();
     const duration = startRef.current ? Math.floor((Date.now() - startRef.current.getTime()) / 1000) : 0;
     const acc = results.length > 0 ? Math.round(results.reduce((a, b) => a + b, 0) / results.length) : 0;
-
-    // Record any remaining notes as misses
     if (selected && replayBuilderRef.current) {
       for (let i = results.length; i < selected.notes.length; i++) {
-        const targetInfo = frequencyToNoteInfo(noteToFrequency(selected.notes[i]));
-        replayBuilderRef.current.recordNoteResult({
-          targetNote: targetInfo.note + targetInfo.octave,
-          targetMidi: selected.notes[i],
-          sungNote: '—',
-          cents: 0,
-          hit: false,
-        });
+        const ti = frequencyToNoteInfo(noteToFrequency(selected.notes[i]));
+        replayBuilderRef.current.recordNoteResult({ targetNote: ti.note + ti.octave, targetMidi: selected.notes[i], sungNote: '—', cents: 0, hit: false });
       }
       const builtReplay = replayBuilderRef.current.build(acc);
       await saveReplay(builtReplay);
       setReplay(builtReplay);
     }
-
     if (selected) {
-      await saveSession({
-        id: Date.now().toString(), date: Date.now(), exerciseId: selected.id, exerciseName: selected.name,
-        type: 'scale', duration, accuracy: acc, notesHit: results.length, totalNotes: selected.notes.length,
-      });
+      await saveSession({ id: Date.now().toString(), date: Date.now(), exerciseId: selected.id, exerciseName: selected.name, type: 'scale', duration, accuracy: acc, notesHit: results.length, totalNotes: selected.notes.length });
       getBests().then(setBests);
     }
   };
 
-  // ── Replay screen ──
   if (replay) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.background }}>
         <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.replayHeader}>
           <Text style={styles.replayHeaderText}>Session Complete</Text>
         </LinearGradient>
-        <ReplayGraph
-          replay={replay}
-          onPracticeAgain={() => { setReplay(null); startExercise(); }}
-          onClose={() => { setReplay(null); setSelected(null); }}
-        />
+        <ReplayGraph replay={replay} onPracticeAgain={() => { setReplay(null); startExercise(); }} onClose={() => { setReplay(null); setSelected(null); }} />
       </View>
     );
   }
 
-  // ── Active exercise ──
   if (selected && (isRunning || countdown > 0)) {
     const targetInfo = currentNote ? frequencyToNoteInfo(noteToFrequency(currentNote)) : null;
     return (
@@ -145,19 +117,30 @@ export default function ScalesScreen() {
         </LinearGradient>
         <View style={styles.exerciseContent}>
           {countdown > 0 ? (
-            <Text style={styles.countdown}>{countdown}</Text>
+            <CountdownCircle count={countdown} total={3} />
           ) : (
             <>
               {targetInfo && (
-                <View style={styles.targetNote}>
-                  <Text style={styles.targetLabel}>Sing this note:</Text>
-                  <Text style={styles.targetNoteText}>{targetInfo.note}{targetInfo.octave}</Text>
+                <View style={styles.targetSection}>
+                  <Text style={styles.targetLabel}>Sing this note</Text>
+                  <View style={styles.targetNoteRow}>
+                    <Text style={styles.targetNoteText}>{targetInfo.note}{targetInfo.octave}</Text>
+                    <TouchableOpacity
+                      style={[styles.listenBtn, tonePlaying && styles.listenBtnActive]}
+                      onPress={() => playNote(currentNote!)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name={tonePlaying ? 'volume-high' : 'volume-medium-outline'} size={18} color={tonePlaying ? COLORS.primaryLight : COLORS.textMuted} />
+                      <Text style={[styles.listenBtnText, tonePlaying && { color: COLORS.primaryLight }]}>
+                        {tonePlaying ? 'Playing…' : 'Hear it'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                   <Text style={styles.targetFreq}>{Math.round(noteToFrequency(currentNote!))} Hz</Text>
                 </View>
               )}
               <PitchMeter note={noteInfo.note} octave={noteInfo.octave} cents={noteInfo.cents}
-                frequency={noteInfo.frequency} pitchHint={pitchHint} color={color} volume={volume} isStable={false} />
-              {/* Mini progress bar */}
+                frequency={noteInfo.frequency} pitchHint={pitchHint} color={color} volume={volume} isStable={noteInfo.isStable ?? false} />
               <View style={styles.progressBar}>
                 <View style={[styles.progressFill, { width: `${(noteIdx / selected.notes.length) * 100}%` }]} />
               </View>
@@ -173,7 +156,6 @@ export default function ScalesScreen() {
     );
   }
 
-  // ── Exercise detail ──
   if (selected) {
     const targetNotes = selected.notes.map(m => frequencyToNoteInfo(noteToFrequency(m)));
     const best = bests[selected.id];
@@ -195,20 +177,18 @@ export default function ScalesScreen() {
           </View>
           {best && (
             <View style={styles.bestCard}>
-              <Text style={styles.bestTitle}>🏆 Your Best</Text>
-              <View style={styles.bestRow}>
-                <Text style={styles.bestStat}>Accuracy: <Text style={styles.bestVal}>{best.accuracy}%</Text></Text>
-                <Text style={styles.bestStat}>Attempts: <Text style={styles.bestVal}>{best.attempts}</Text></Text>
-              </View>
+              <Text style={styles.bestTitle}>🏆 Your Best: {best.accuracy}% · {best.attempts} attempts</Text>
             </View>
           )}
           <View style={styles.notePreview}>
             {targetNotes.map((n, i) => (
-              <View key={i} style={[styles.previewNote, { backgroundColor: LEVEL_COLORS[selected.level] + '22', borderColor: LEVEL_COLORS[selected.level] + '44' }]}>
+              <TouchableOpacity key={i} style={[styles.previewNote, { backgroundColor: LEVEL_COLORS[selected.level] + '22', borderColor: LEVEL_COLORS[selected.level] + '44' }]}
+                onPress={() => playNote(selected.notes[i])}>
                 <Text style={[styles.previewNoteText, { color: LEVEL_COLORS[selected.level] }]}>{n.note}{n.octave}</Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
+          <Text style={styles.tapHint}>Tap any note above to hear it</Text>
           <TouchableOpacity style={styles.startBtn} onPress={startExercise}>
             <Ionicons name="play" size={20} color="#fff" />
             <Text style={styles.startText}>Start Exercise</Text>
@@ -218,7 +198,6 @@ export default function ScalesScreen() {
     );
   }
 
-  // ── Exercise list ──
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.header}>
@@ -244,13 +223,8 @@ export default function ScalesScreen() {
                 <Text style={styles.exerciseName}>{item.name}</Text>
                 <Text style={styles.exerciseDesc}>{item.description} · {item.notes.length} notes · {item.bpm} BPM</Text>
               </View>
-              {best ? (
-                <View style={styles.bestMini}>
-                  <Text style={[styles.bestMiniVal, { color: best.accuracy >= 80 ? COLORS.success : '#F59E0B' }]}>{best.accuracy}%</Text>
-                </View>
-              ) : (
-                <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
-              )}
+              {best ? <Text style={[styles.bestMini, { color: best.accuracy >= 80 ? COLORS.success : COLORS.warning }]}>{best.accuracy}%</Text>
+                : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
             </TouchableOpacity>
           );
         }}
@@ -266,7 +240,7 @@ const styles = StyleSheet.create({
   replayHeaderText: { fontSize: 18, fontWeight: '700', color: COLORS.text },
   title: { fontSize: FONTS.sizes.xl, fontWeight: FONTS.weights.black, color: COLORS.text },
   subtitle: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginTop: 4 },
-  filterRow: { flexDirection: 'row', gap: 8, marginTop: SPACING.sm },
+  filterRow: { flexDirection: 'row', gap: 8, marginTop: SPACING.sm, flexWrap: 'wrap' },
   filterBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: BORDER_RADIUS.full, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border },
   filterActive: { backgroundColor: COLORS.primary + '22', borderColor: COLORS.primary },
   filterText: { fontSize: FONTS.sizes.xs, color: COLORS.textMuted, fontWeight: FONTS.weights.semibold },
@@ -275,8 +249,7 @@ const styles = StyleSheet.create({
   levelDot: { width: 10, height: 10, borderRadius: 5 },
   exerciseName: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.bold, color: COLORS.text },
   exerciseDesc: { fontSize: FONTS.sizes.xs, color: COLORS.textMuted, marginTop: 2 },
-  bestMini: { alignItems: 'center' },
-  bestMiniVal: { fontSize: 14, fontWeight: '700' },
+  bestMini: { fontSize: 14, fontWeight: '700' },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
   backText: { color: COLORS.text, fontSize: FONTS.sizes.sm },
   detailContent: { flex: 1, padding: SPACING.lg },
@@ -284,22 +257,23 @@ const styles = StyleSheet.create({
   metaItem: { alignItems: 'center' },
   metaLabel: { fontSize: 11, color: COLORS.textMuted, marginBottom: 4 },
   metaValue: { fontSize: 16, fontWeight: '700', color: COLORS.text, textTransform: 'capitalize' },
-  bestCard: { backgroundColor: '#1a2a1a', borderRadius: BORDER_RADIUS.lg, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: COLORS.success + '44' },
-  bestTitle: { fontSize: 13, fontWeight: '700', color: COLORS.success, marginBottom: 6 },
-  bestRow: { flexDirection: 'row', gap: 20 },
-  bestStat: { fontSize: 13, color: COLORS.textMuted },
-  bestVal: { color: COLORS.text, fontWeight: '700' },
-  notePreview: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: SPACING.xl },
-  previewNote: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: BORDER_RADIUS.sm, borderWidth: 1 },
+  bestCard: { backgroundColor: '#1a2a1a', borderRadius: BORDER_RADIUS.lg, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: COLORS.success + '44' },
+  bestTitle: { fontSize: 13, color: COLORS.success, fontWeight: '700' },
+  notePreview: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  previewNote: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: BORDER_RADIUS.sm, borderWidth: 1 },
   previewNoteText: { fontSize: FONTS.sizes.sm, fontWeight: FONTS.weights.bold },
-  startBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: BORDER_RADIUS.lg },
+  tapHint: { fontSize: 11, color: COLORS.textMuted, marginBottom: SPACING.xl, textAlign: 'center' },
+  startBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, paddingVertical: 16, borderRadius: BORDER_RADIUS.lg },
   startText: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.bold, color: '#fff' },
-  exerciseContent: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.lg, padding: SPACING.lg },
-  countdown: { fontSize: 72, fontWeight: '900', color: COLORS.primaryLight },
-  targetNote: { alignItems: 'center', gap: 4 },
+  exerciseContent: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.lg },
+  targetSection: { alignItems: 'center', gap: 4 },
   targetLabel: { fontSize: FONTS.sizes.sm, color: COLORS.textMuted },
-  targetNoteText: { fontSize: FONTS.sizes['3xl'], fontWeight: FONTS.weights.black, color: COLORS.primaryLight },
+  targetNoteRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  targetNoteText: { fontSize: 52, fontWeight: FONTS.weights.black, color: COLORS.primaryLight },
   targetFreq: { fontSize: 12, color: COLORS.textMuted },
+  listenBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: BORDER_RADIUS.full, backgroundColor: '#1E1E3A', borderWidth: 1, borderColor: '#2A2A50' },
+  listenBtnActive: { borderColor: COLORS.primaryLight, backgroundColor: '#2A1A5E' },
+  listenBtnText: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
   progressBar: { width: '80%', height: 6, backgroundColor: '#2A2A50', borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 },
   progressText: { fontSize: 12, color: COLORS.textMuted },
