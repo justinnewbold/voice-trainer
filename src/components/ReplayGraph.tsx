@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensio
 import Svg, { Path, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { COLORS, BORDER_RADIUS, SPACING } from '../constants/theme';
 import { SessionReplay, analyzeReplay } from '../utils/sessionReplay';
+import ScoreCard from './ScoreCard';
 
 interface Props {
   replay: SessionReplay;
@@ -85,8 +86,8 @@ function PitchGraph({ replay, width }: { replay: SessionReplay; width: number })
   );
 }
 
-export default function ReplayGraph({ replay, onClose, onPracticeAgain }: Props) {
-  const [tab, setTab] = useState<'graph' | 'notes' | 'analysis'>('graph');
+export default function ReplayGraph({ replay, onClose, onPracticeAgain, progress }: Props) {
+  const [tab, setTab] = useState<'graph' | 'notes' | 'analysis' | 'share'>('graph');
   const { width: screenWidth } = useWindowDimensions();
   const graphWidth = screenWidth - 64; // 16px padding each side + 16px card padding each side
   const analysis = analyzeReplay(replay);
@@ -128,10 +129,10 @@ export default function ReplayGraph({ replay, onClose, onPracticeAgain }: Props)
 
       {/* Tab bar */}
       <View style={styles.tabRow}>
-        {(['graph', 'notes', 'analysis'] as const).map(t => (
+        {(['graph', 'notes', 'analysis', 'share'] as const).map(t => (
           <TouchableOpacity key={t} style={[styles.tab, tab === t && styles.tabActive]} onPress={() => setTab(t)}>
             <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
-              {t === 'graph' ? '📈 Graph' : t === 'notes' ? '🎵 Notes' : '💡 Analysis'}
+              {t === 'graph' ? '📈 Graph' : t === 'notes' ? '🎵 Notes' : t === 'analysis' ? '💡 Analysis' : '📤 Share'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -210,6 +211,15 @@ export default function ReplayGraph({ replay, onClose, onPracticeAgain }: Props)
         </View>
       )}
 
+
+      {tab === 'share' && (
+        <ScoreCard
+          replay={replay}
+          progress={progress}
+        />
+      )}
+
+      {tab !== "share" && (
       <View style={styles.ctaRow}>
         {onPracticeAgain && (
           <TouchableOpacity style={styles.practiceBtn} onPress={onPracticeAgain}>
@@ -222,6 +232,7 @@ export default function ReplayGraph({ replay, onClose, onPracticeAgain }: Props)
           </TouchableOpacity>
         )}
       </View>
+      )}
     </ScrollView>
   );
 }
@@ -267,3 +278,4 @@ const styles = StyleSheet.create({
   doneBtn: { flex: 1, backgroundColor: '#1E1E3A', padding: 14, borderRadius: BORDER_RADIUS.lg, alignItems: 'center', borderWidth: 1, borderColor: '#2A2A50' },
   doneBtnText: { color: COLORS.textSecondary, fontSize: 15, fontWeight: '600' },
 });
+
