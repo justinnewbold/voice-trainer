@@ -6,8 +6,10 @@ import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import PitchMeter from '../components/PitchMeter';
 import CountdownCircle from '../components/CountdownCircle';
 import ReplayGraph from '../components/ReplayGraph';
+import Confetti from '../components/Confetti';
 import { usePitchDetection } from '../hooks/usePitchDetection';
 import { useReferenceTone } from '../hooks/useReferenceTone';
+import { useSoundEffects } from '../hooks/useSoundEffects';
 import { EXERCISES, Exercise } from '../utils/scales';
 import { noteToFrequency, frequencyToNoteInfo } from '../utils/pitchUtils';
 import { saveSession, getBests } from '../utils/storage';
@@ -25,28 +27,38 @@ export default function ScalesScreen() {
   const [countdown, setCountdown] = useState(0);
   const [replay, setReplay] = useState<SessionReplay | null>(null);
   const [bests, setBests] = useState<Record<string, any>>({});
+  const [transpose, setTranspose] = useState(0);       // semitone offset
+  const [showConfetti, setShowConfetti] = useState(false);
   const startRef = useRef<Date | null>(null);
   const replayBuilderRef = useRef<ReturnType<typeof createReplayBuilder> | null>(null);
   const noteStartRef = useRef<number>(0);
+
   const { noteInfo, pitchHint, isListening, volume, color, startListening, stopListening } = usePitchDetection();
   const { playNote, playing: tonePlaying } = useReferenceTone();
+  const { playNoteHit, playFanfare, playComplete, playCountdownBeep } = useSoundEffects();
 
   useEffect(() => { getBests().then(setBests); }, []);
 
   const filtered = filter === 'all' ? EXERCISES : EXERCISES.filter(e => e.level === filter);
-  const currentNote = selected?.notes[noteIdx];
+
+  // Apply transpose to the current note
+  const transposedNote = (midi: number) => midi + transpose;
+  const currentNote = selected ? transposedNote(selected.notes[noteIdx]) : undefined;
 
   useEffect(() => {
-    if (!isRunning || !selected || !currentNote) return;
+    if (!isRunning || !selected || currentNote === undefined) return;
     const targetInfo = frequencyToNoteInfo(noteToFrequency(currentNote));
+
     if (noteInfo.note !== '-' && noteInfo.frequency > 0 && replayBuilderRef.current) {
       replayBuilderRef.current.addSample({
         note: noteInfo.note, octave: noteInfo.octave, cents: noteInfo.cents, freq: noteInfo.frequency,
         targetNote: targetInfo.note + targetInfo.octave, targetMidi: currentNote, hit: false,
       });
     }
+
     const isMatch = noteInfo.note !== '-' && noteInfo.note === targetInfo.note && Math.abs(noteInfo.cents) < 30;
     if (isMatch) {
+      playNoteHit();
       replayBuilderRef.current?.recordNoteResult({
         targetNote: targetInfo.note + targetInfo.octave, targetMidi: currentNote,
         sungNote: noteInfo.note + noteInfo.octave, cents: noteInfo.cents, hit: true,
@@ -62,9 +74,11 @@ export default function ScalesScreen() {
 
   const startExercise = async () => {
     setReplay(null);
+    setShowConfetti(false);
     replayBuilderRef.current = createReplayBuilder(selected!.name, 'scale');
     for (let i = 3; i > 0; i--) {
       setCountdown(i);
+      playCountdownBeep(i);
       await new Promise(r => setTimeout(r, 1000));
     }
     setCountdown(0);
@@ -81,21 +95,32 @@ export default function ScalesScreen() {
     await stopListening();
     const duration = startRef.current ? Math.floor((Date.now() - startRef.current.getTime()) / 1000) : 0;
     const acc = results.length > 0 ? Math.round(results.reduce((a, b) => a + b, 0) / results.length) : 0;
+
+    // Sound + confetti
+    if (acc >= 80) {
+      playFanfare();
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 2500);
+    } else {
+      playComplete();
+    }
+
     if (selected && replayBuilderRef.current) {
       for (let i = results.length; i < selected.notes.length; i++) {
-        const ti = frequencyToNoteInfo(noteToFrequency(selected.notes[i]));
-        replayBuilderRef.current.recordNoteResult({ targetNote: ti.note + ti.octave, targetMidi: selected.notes[i], sungNote: '—', cents: 0, hit: false });
+        const ti = frequencyToNoteInfo(noteToFrequency(transposedNote(selected.notes[i])));
+        replayBuilderRef.current.recordNoteResult({ targetNote: ti.note + ti.octave, targetMidi: transposedNote(selected.notes[i]), sungNote: '—', cents: 0, hit: false });
       }
       const builtReplay = replayBuilderRef.current.build(acc);
       await saveReplay(builtReplay);
       setReplay(builtReplay);
     }
     if (selected) {
-      await saveSession({ id: Date.now().toString(), date: Date.now(), exerciseId: selected.id, exerciseName: selected.name, type: 'scale', duration, accuracy: acc, notesHit: results.length, totalNotes: selected.notes.length });
+      await saveSession({ id: Date.now().toString(), date: Date.now(), exerciseId: selected.id, exerciseName: selected.name + (transpose !== 0 ? ` (${transpose > 0 ? '+' : ''}${transpose})` : ''), type: 'scale', duration, accuracy: acc, notesHit: results.length, totalNotes: selected.notes.length });
       getBests().then(setBests);
     }
   };
 
+  // ── Replay ──
   if (replay) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.background }}>
@@ -103,16 +128,18 @@ export default function ScalesScreen() {
           <Text style={styles.replayHeaderText}>Session Complete</Text>
         </LinearGradient>
         <ReplayGraph replay={replay} onPracticeAgain={() => { setReplay(null); startExercise(); }} onClose={() => { setReplay(null); setSelected(null); }} />
+        <Confetti trigger={showConfetti} />
       </View>
     );
   }
 
+  // ── Active exercise ──
   if (selected && (isRunning || countdown > 0)) {
-    const targetInfo = currentNote ? frequencyToNoteInfo(noteToFrequency(currentNote)) : null;
+    const targetInfo = currentNote !== undefined ? frequencyToNoteInfo(noteToFrequency(currentNote)) : null;
     return (
       <View style={styles.container}>
         <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.header}>
-          <Text style={styles.title}>{selected.name}</Text>
+          <Text style={styles.title}>{selected.name}{transpose !== 0 ? ` ${transpose > 0 ? '+' : ''}${transpose}` : ''}</Text>
           <Text style={styles.subtitle}>Note {noteIdx + 1} / {selected.notes.length}</Text>
         </LinearGradient>
         <View style={styles.exerciseContent}>
@@ -128,7 +155,6 @@ export default function ScalesScreen() {
                     <TouchableOpacity
                       style={[styles.listenBtn, tonePlaying && styles.listenBtnActive]}
                       onPress={() => playNote(currentNote!)}
-                      activeOpacity={0.7}
                     >
                       <Ionicons name={tonePlaying ? 'volume-high' : 'volume-medium-outline'} size={18} color={tonePlaying ? COLORS.primaryLight : COLORS.textMuted} />
                       <Text style={[styles.listenBtnText, tonePlaying && { color: COLORS.primaryLight }]}>
@@ -140,7 +166,7 @@ export default function ScalesScreen() {
                 </View>
               )}
               <PitchMeter note={noteInfo.note} octave={noteInfo.octave} cents={noteInfo.cents}
-                frequency={noteInfo.frequency} pitchHint={pitchHint} color={color} volume={volume} isStable={noteInfo.isStable ?? false} />
+                frequency={noteInfo.frequency} pitchHint={pitchHint} color={color} volume={volume} isStable={false} />
               <View style={styles.progressBar}>
                 <View style={[styles.progressFill, { width: `${(noteIdx / selected.notes.length) * 100}%` }]} />
               </View>
@@ -152,13 +178,16 @@ export default function ScalesScreen() {
             </>
           )}
         </View>
+        <Confetti trigger={showConfetti} />
       </View>
     );
   }
 
+  // ── Exercise detail ──
   if (selected) {
-    const targetNotes = selected.notes.map(m => frequencyToNoteInfo(noteToFrequency(m)));
+    const targetNotes = selected.notes.map(m => frequencyToNoteInfo(noteToFrequency(transposedNote(m))));
     const best = bests[selected.id];
+    const transposedLabel = transpose === 0 ? 'Original key' : `${transpose > 0 ? '+' : ''}${transpose} semitones`;
     return (
       <View style={styles.container}>
         <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.header}>
@@ -175,6 +204,33 @@ export default function ScalesScreen() {
             <View style={styles.metaItem}><Text style={styles.metaLabel}>Notes</Text><Text style={styles.metaValue}>{selected.notes.length}</Text></View>
             <View style={styles.metaItem}><Text style={styles.metaLabel}>BPM</Text><Text style={styles.metaValue}>{selected.bpm}</Text></View>
           </View>
+
+          {/* Transpose control */}
+          <View style={styles.transposeCard}>
+            <View style={styles.transposeHeader}>
+              <Text style={styles.transposeLabel}>🎚 Transpose</Text>
+              <Text style={[styles.transposeValue, { color: transpose === 0 ? COLORS.textMuted : COLORS.primaryLight }]}>{transposedLabel}</Text>
+            </View>
+            <View style={styles.transposeRow}>
+              <TouchableOpacity style={styles.transposeBtn} onPress={() => setTranspose(t => Math.max(-12, t - 1))}>
+                <Ionicons name="remove" size={20} color={COLORS.text} />
+              </TouchableOpacity>
+              <View style={styles.transposeTrack}>
+                {[-4,-3,-2,-1,0,1,2,3,4].map(v => (
+                  <TouchableOpacity key={v} onPress={() => setTranspose(v)} style={[styles.transposePip, transpose === v && styles.transposePipActive, v === 0 && styles.transposePipCenter]} />
+                ))}
+              </View>
+              <TouchableOpacity style={styles.transposeBtn} onPress={() => setTranspose(t => Math.min(12, t + 1))}>
+                <Ionicons name="add" size={20} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+            {transpose !== 0 && (
+              <TouchableOpacity onPress={() => setTranspose(0)} style={styles.transposeReset}>
+                <Text style={styles.transposeResetText}>Reset to original</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           {best && (
             <View style={styles.bestCard}>
               <Text style={styles.bestTitle}>🏆 Your Best: {best.accuracy}% · {best.attempts} attempts</Text>
@@ -182,8 +238,9 @@ export default function ScalesScreen() {
           )}
           <View style={styles.notePreview}>
             {targetNotes.map((n, i) => (
-              <TouchableOpacity key={i} style={[styles.previewNote, { backgroundColor: LEVEL_COLORS[selected.level] + '22', borderColor: LEVEL_COLORS[selected.level] + '44' }]}
-                onPress={() => playNote(selected.notes[i])}>
+              <TouchableOpacity key={i}
+                style={[styles.previewNote, { backgroundColor: LEVEL_COLORS[selected.level] + '22', borderColor: LEVEL_COLORS[selected.level] + '44' }]}
+                onPress={() => playNote(transposedNote(selected.notes[i]))}>
                 <Text style={[styles.previewNoteText, { color: LEVEL_COLORS[selected.level] }]}>{n.note}{n.octave}</Text>
               </TouchableOpacity>
             ))}
@@ -198,6 +255,7 @@ export default function ScalesScreen() {
     );
   }
 
+  // ── Exercise list ──
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.header}>
@@ -217,7 +275,7 @@ export default function ScalesScreen() {
         renderItem={({ item }) => {
           const best = bests[item.id];
           return (
-            <TouchableOpacity style={styles.exerciseCard} onPress={() => setSelected(item)} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.exerciseCard} onPress={() => { setSelected(item); setTranspose(0); }} activeOpacity={0.7}>
               <View style={[styles.levelDot, { backgroundColor: LEVEL_COLORS[item.level] }]} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.exerciseName}>{item.name}</Text>
@@ -257,6 +315,18 @@ const styles = StyleSheet.create({
   metaItem: { alignItems: 'center' },
   metaLabel: { fontSize: 11, color: COLORS.textMuted, marginBottom: 4 },
   metaValue: { fontSize: 16, fontWeight: '700', color: COLORS.text, textTransform: 'capitalize' },
+  transposeCard: { backgroundColor: '#13132A', borderRadius: BORDER_RADIUS.lg, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#2A2A50' },
+  transposeHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  transposeLabel: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  transposeValue: { fontSize: 13, fontWeight: '600' },
+  transposeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  transposeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1E1E3A', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#2A2A50' },
+  transposeTrack: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 36 },
+  transposePip: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#2A2A50' },
+  transposePipActive: { backgroundColor: COLORS.primaryLight, width: 14, height: 14, borderRadius: 7 },
+  transposePipCenter: { borderWidth: 1.5, borderColor: COLORS.textMuted },
+  transposeReset: { marginTop: 10, alignItems: 'center' },
+  transposeResetText: { fontSize: 12, color: COLORS.textMuted },
   bestCard: { backgroundColor: '#1a2a1a', borderRadius: BORDER_RADIUS.lg, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: COLORS.success + '44' },
   bestTitle: { fontSize: 13, color: COLORS.success, fontWeight: '700' },
   notePreview: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
