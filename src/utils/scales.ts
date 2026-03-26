@@ -41,60 +41,298 @@ export interface SongMelody {
   emoji: string;
 }
 
+// Duration guide: 0.5 = eighth, 1 = quarter, 1.5 = dotted quarter, 2 = half, 3 = dotted half, 4 = whole
+// BPMs match the commonly performed tempo of each song
+
 export const SONG_MELODIES: SongMelody[] = [
-  // Beginner
-  { id: 's1', name: 'Twinkle Twinkle', artist: 'Traditional', level: 'beginner', bpm: 80, genre: 'Children', emoji: '⭐',
-    notes: [60,60,67,67,69,69,67,0, 65,65,64,64,62,62,60,0].map(m => ({ midi: m, duration: 1 })) },
-  { id: 's2', name: 'Happy Birthday', artist: 'Traditional', level: 'beginner', bpm: 72, genre: 'Children', emoji: '🎂',
-    notes: [60,60,62,60,65,64, 60,60,62,60,67,65].map(m => ({ midi: m, duration: 1 })) },
-  { id: 's3', name: 'Mary Had a Little Lamb', artist: 'Traditional', level: 'beginner', bpm: 80, genre: 'Children', emoji: '🐑',
-    notes: [64,62,60,62,64,64,64, 62,62,62, 64,67,67].map(m => ({ midi: m, duration: 1 })) },
-  { id: 's4', name: 'Jingle Bells', artist: 'Traditional', level: 'beginner', bpm: 88, genre: 'Holiday', emoji: '🔔',
-    notes: [64,64,64,64,64,64,64,67,60,62,64].map(m => ({ midi: m, duration: 1 })) },
-  { id: 's13', name: 'Row Your Boat', artist: 'Traditional', level: 'beginner', bpm: 76, genre: 'Children', emoji: '🚣',
-    notes: [60,60,60,62,64,64,62,64,65,67,72,72,72,67,67,67,64,64,64,60,60].map(m => ({ midi: m, duration: 1 })) },
-  { id: 's14', name: 'London Bridge', artist: 'Traditional', level: 'beginner', bpm: 80, genre: 'Children', emoji: '🌉',
-    notes: [67,69,67,65,64,65,67,62,64,65,64,65,67,67,69,67,65,64,65,67,62,67,64,60].map(m => ({ midi: m, duration: 1 })) },
-  // Intermediate
-  { id: 's5', name: 'Amazing Grace', artist: 'Traditional', level: 'intermediate', bpm: 72, genre: 'Gospel', emoji: '🙏',
-    notes: [60,65,67,65,67,65,64,60, 60,65,67,65,67,72].map(m => ({ midi: m, duration: 1.5 })) },
-  { id: 's6', name: 'Greensleeves', artist: 'Traditional', level: 'intermediate', bpm: 84, genre: 'Folk', emoji: '🌿',
-    notes: [57,60,62,64,65,64,62,59,55,57,59,60,59,57,56,55,57].map(m => ({ midi: m, duration: 1 })) },
-  { id: 's7', name: 'Ode to Joy', artist: 'Beethoven', level: 'intermediate', bpm: 96, genre: 'Classical', emoji: '🎼',
-    notes: [64,64,65,67,67,65,64,62,60,60,62,64,64,62,62].map(m => ({ midi: m, duration: 1 })) },
+  // ── Beginner ──────────────────────────────────────────────────────────────
+
+  // Twinkle Twinkle: ♩=100, 4/4, all quarters except final halves
+  { id: 's1', name: 'Twinkle Twinkle', artist: 'Traditional', level: 'beginner', bpm: 100, genre: 'Children', emoji: '⭐',
+    notes: [
+      {midi:60,duration:1},{midi:60,duration:1},{midi:67,duration:1},{midi:67,duration:1},
+      {midi:69,duration:1},{midi:69,duration:1},{midi:67,duration:2},
+      {midi:65,duration:1},{midi:65,duration:1},{midi:64,duration:1},{midi:64,duration:1},
+      {midi:62,duration:1},{midi:62,duration:1},{midi:60,duration:2},
+    ] },
+
+  // Happy Birthday: ♩=80, 3/4 waltz feel — pickup eighth + quarters + dotted half
+  { id: 's2', name: 'Happy Birthday', artist: 'Traditional', level: 'beginner', bpm: 80, genre: 'Children', emoji: '🎂',
+    notes: [
+      {midi:60,duration:0.5},{midi:60,duration:0.5},{midi:62,duration:1},{midi:60,duration:1},{midi:65,duration:1},{midi:64,duration:2},
+      {midi:60,duration:0.5},{midi:60,duration:0.5},{midi:62,duration:1},{midi:60,duration:1},{midi:67,duration:1},{midi:65,duration:2},
+      {midi:60,duration:0.5},{midi:60,duration:0.5},{midi:72,duration:1},{midi:69,duration:1},{midi:65,duration:1},{midi:64,duration:1},{midi:62,duration:1},
+      {midi:71,duration:0.5},{midi:71,duration:0.5},{midi:69,duration:1},{midi:65,duration:1},{midi:67,duration:1},{midi:65,duration:2},
+    ] },
+
+  // Mary Had a Little Lamb: ♩=110, 4/4, mostly quarters
+  { id: 's3', name: 'Mary Had a Little Lamb', artist: 'Traditional', level: 'beginner', bpm: 110, genre: 'Children', emoji: '🐑',
+    notes: [
+      {midi:64,duration:1},{midi:62,duration:1},{midi:60,duration:1},{midi:62,duration:1},
+      {midi:64,duration:1},{midi:64,duration:1},{midi:64,duration:2},
+      {midi:62,duration:1},{midi:62,duration:1},{midi:62,duration:2},
+      {midi:64,duration:1},{midi:67,duration:1},{midi:67,duration:2},
+      {midi:64,duration:1},{midi:62,duration:1},{midi:60,duration:1},{midi:62,duration:1},
+      {midi:64,duration:1},{midi:64,duration:1},{midi:64,duration:1},{midi:64,duration:1},
+      {midi:62,duration:1},{midi:62,duration:1},{midi:64,duration:1},{midi:62,duration:1},
+      {midi:60,duration:4},
+    ] },
+
+  // Jingle Bells: ♩=120, 4/4, bright and energetic
+  { id: 's4', name: 'Jingle Bells', artist: 'Traditional', level: 'beginner', bpm: 120, genre: 'Holiday', emoji: '🔔',
+    notes: [
+      {midi:64,duration:1},{midi:64,duration:1},{midi:64,duration:2},
+      {midi:64,duration:1},{midi:64,duration:1},{midi:64,duration:2},
+      {midi:64,duration:1},{midi:67,duration:1},{midi:60,duration:1},{midi:62,duration:1},
+      {midi:64,duration:4},
+      {midi:65,duration:1},{midi:65,duration:1},{midi:65,duration:1},{midi:65,duration:1},
+      {midi:65,duration:1},{midi:64,duration:1},{midi:64,duration:1},{midi:64,duration:0.5},{midi:64,duration:0.5},
+      {midi:64,duration:1},{midi:62,duration:1},{midi:62,duration:1},{midi:64,duration:1},
+      {midi:62,duration:2},{midi:67,duration:2},
+    ] },
+
+  // Row Your Boat: ♩=92, 3/4, gentle rowing feel
+  { id: 's13', name: 'Row Your Boat', artist: 'Traditional', level: 'beginner', bpm: 92, genre: 'Children', emoji: '🚣',
+    notes: [
+      {midi:60,duration:1.5},{midi:60,duration:1.5},{midi:60,duration:1},{midi:62,duration:0.5},
+      {midi:64,duration:3},
+      {midi:64,duration:1},{midi:62,duration:0.5},{midi:64,duration:1},{midi:65,duration:0.5},
+      {midi:67,duration:3},
+      {midi:72,duration:0.5},{midi:72,duration:0.5},{midi:72,duration:0.5},{midi:67,duration:0.5},{midi:67,duration:0.5},{midi:67,duration:0.5},
+      {midi:64,duration:0.5},{midi:64,duration:0.5},{midi:64,duration:0.5},{midi:60,duration:0.5},{midi:60,duration:0.5},{midi:60,duration:0.5},
+      {midi:67,duration:1},{midi:65,duration:0.5},{midi:64,duration:1},{midi:62,duration:0.5},
+      {midi:60,duration:3},
+    ] },
+
+  // London Bridge: ♩=108
+  { id: 's14', name: 'London Bridge', artist: 'Traditional', level: 'beginner', bpm: 108, genre: 'Children', emoji: '🌉',
+    notes: [
+      {midi:67,duration:1},{midi:69,duration:0.5},{midi:67,duration:0.5},{midi:65,duration:1},
+      {midi:64,duration:1},{midi:65,duration:0.5},{midi:67,duration:0.5},
+      {midi:62,duration:2},{midi:64,duration:1},
+      {midi:65,duration:1.5},{midi:67,duration:0.5},{midi:65,duration:1},{midi:64,duration:1},
+      {midi:62,duration:2},
+    ] },
+
+  // ── Intermediate ──────────────────────────────────────────────────────────
+
+  // Amazing Grace: ♩=66, 3/4 — slow and reverent
+  { id: 's5', name: 'Amazing Grace', artist: 'Traditional', level: 'intermediate', bpm: 66, genre: 'Gospel', emoji: '🙏',
+    notes: [
+      {midi:60,duration:1},
+      {midi:65,duration:2},{midi:65,duration:1},
+      {midi:67,duration:2},{midi:65,duration:1},
+      {midi:69,duration:2},{midi:65,duration:1},
+      {midi:65,duration:3},
+      {midi:60,duration:1},
+      {midi:65,duration:2},{midi:65,duration:1},
+      {midi:67,duration:2},{midi:65,duration:1},
+      {midi:72,duration:3},
+    ] },
+
+  // Greensleeves: ♩=88, 3/4 waltz, dotted rhythms
+  { id: 's6', name: 'Greensleeves', artist: 'Traditional', level: 'intermediate', bpm: 88, genre: 'Folk', emoji: '🌿',
+    notes: [
+      {midi:57,duration:1},
+      {midi:60,duration:1.5},{midi:62,duration:0.5},{midi:64,duration:1},
+      {midi:65,duration:1.5},{midi:64,duration:0.5},{midi:62,duration:1},
+      {midi:59,duration:1.5},{midi:57,duration:0.5},{midi:55,duration:1},
+      {midi:57,duration:3},
+      {midi:59,duration:1},
+      {midi:60,duration:1.5},{midi:59,duration:0.5},{midi:57,duration:1},
+      {midi:56,duration:1.5},{midi:55,duration:0.5},{midi:57,duration:1},
+      {midi:60,duration:3},
+    ] },
+
+  // Ode to Joy: ♩=108, 4/4, Beethoven's classic tempo
+  { id: 's7', name: 'Ode to Joy', artist: 'Beethoven', level: 'intermediate', bpm: 108, genre: 'Classical', emoji: '🎼',
+    notes: [
+      {midi:64,duration:1},{midi:64,duration:1},{midi:65,duration:1},{midi:67,duration:1},
+      {midi:67,duration:1},{midi:65,duration:1},{midi:64,duration:1},{midi:62,duration:1},
+      {midi:60,duration:1},{midi:60,duration:1},{midi:62,duration:1},{midi:64,duration:1},
+      {midi:64,duration:1.5},{midi:62,duration:0.5},{midi:62,duration:2},
+      {midi:64,duration:1},{midi:64,duration:1},{midi:65,duration:1},{midi:67,duration:1},
+      {midi:67,duration:1},{midi:65,duration:1},{midi:64,duration:1},{midi:62,duration:1},
+      {midi:60,duration:1},{midi:60,duration:1},{midi:62,duration:1},{midi:64,duration:1},
+      {midi:62,duration:1.5},{midi:60,duration:0.5},{midi:60,duration:2},
+    ] },
+
+  // Scarborough Fair: ♩=76, 3/4 minor
   { id: 's8', name: 'Scarborough Fair', artist: 'Traditional', level: 'intermediate', bpm: 76, genre: 'Folk', emoji: '🌾',
-    notes: [57,57,64,62,60,64,67,69,67,64,65,62,57].map(m => ({ midi: m, duration: 1.5 })) },
-  { id: 's15', name: 'Danny Boy', artist: 'Traditional', level: 'intermediate', bpm: 66, genre: 'Folk', emoji: '🍀',
-    notes: [60,65,65,67,65,67,69,65,64,60,60,62,64,65,67,65,64,62,60].map(m => ({ midi: m, duration: 1.5 })) },
-  { id: 's16', name: 'House of the Rising Sun', artist: 'Traditional', level: 'intermediate', bpm: 70, genre: 'Blues', emoji: '🌅',
-    notes: [57,60,64,67,64,60,57,60,64,67,64,60,55,59,62,67].map(m => ({ midi: m, duration: 1 })) },
+    notes: [
+      {midi:57,duration:3},
+      {midi:57,duration:1},{midi:64,duration:1},{midi:62,duration:1},
+      {midi:60,duration:2},{midi:64,duration:1},
+      {midi:67,duration:2},{midi:64,duration:1},
+      {midi:65,duration:3},
+      {midi:64,duration:2},{midi:65,duration:1},
+      {midi:62,duration:3},
+      {midi:57,duration:3},
+    ] },
+
+  // Danny Boy: ♩=60, slow 4/4 ballad
+  { id: 's15', name: 'Danny Boy', artist: 'Traditional', level: 'intermediate', bpm: 60, genre: 'Folk', emoji: '🍀',
+    notes: [
+      {midi:60,duration:0.5},{midi:65,duration:1.5},{midi:65,duration:1},
+      {midi:67,duration:1},{midi:65,duration:0.5},{midi:67,duration:0.5},{midi:69,duration:2},
+      {midi:65,duration:1.5},{midi:64,duration:0.5},{midi:60,duration:2},
+      {midi:60,duration:0.5},{midi:62,duration:1.5},{midi:64,duration:1},
+      {midi:65,duration:1},{midi:67,duration:1},{midi:65,duration:1},{midi:64,duration:1},
+      {midi:62,duration:4},
+    ] },
+
+  // House of the Rising Sun: ♩=76, 6/8 triplet feel
+  { id: 's16', name: 'House of the Rising Sun', artist: 'Traditional', level: 'intermediate', bpm: 76, genre: 'Blues', emoji: '🌅',
+    notes: [
+      {midi:57,duration:1},{midi:60,duration:1},{midi:64,duration:1},
+      {midi:67,duration:2},{midi:64,duration:1},
+      {midi:60,duration:1},{midi:57,duration:2},
+      {midi:60,duration:1},{midi:64,duration:1},{midi:67,duration:1},
+      {midi:64,duration:2},{midi:60,duration:1},
+      {midi:55,duration:1},{midi:59,duration:1},{midi:62,duration:1},
+      {midi:67,duration:3},
+    ] },
+
+  // Stand By Me: ♩=76, 4/4 soul groove
   { id: 's17', name: 'Stand By Me', artist: 'Ben E. King', level: 'intermediate', bpm: 76, genre: 'Soul', emoji: '🤝',
-    notes: [64,64,62,64,67,67,64,62,60,60,62,60].map(m => ({ midi: m, duration: 1.5 })) },
-  { id: 's18', name: 'This Land Is Your Land', artist: 'Woody Guthrie', level: 'intermediate', bpm: 84, genre: 'Folk', emoji: '🏞️',
-    notes: [67,67,67,67,65,64,62,60,62,62,64,65,64,62,60].map(m => ({ midi: m, duration: 1 })) },
-  { id: 's19', name: 'You Are My Sunshine', artist: 'Traditional', level: 'intermediate', bpm: 80, genre: 'Country', emoji: '☀️',
-    notes: [60,64,65,64,64,62,60,60,64,65,64,64,62,64].map(m => ({ midi: m, duration: 1 })) },
+    notes: [
+      {midi:64,duration:1.5},{midi:64,duration:0.5},{midi:62,duration:0.5},{midi:64,duration:0.5},
+      {midi:67,duration:2},{midi:67,duration:1},
+      {midi:64,duration:1},{midi:62,duration:1},
+      {midi:60,duration:2},{midi:60,duration:1},{midi:62,duration:1},
+      {midi:60,duration:4},
+    ] },
+
+  // This Land Is Your Land: ♩=96, upbeat folk-country
+  { id: 's18', name: 'This Land Is Your Land', artist: 'Woody Guthrie', level: 'intermediate', bpm: 96, genre: 'Folk', emoji: '🏞️',
+    notes: [
+      {midi:67,duration:1},{midi:67,duration:1},{midi:67,duration:0.5},{midi:65,duration:0.5},
+      {midi:64,duration:1},{midi:62,duration:1},{midi:60,duration:2},
+      {midi:62,duration:1},{midi:62,duration:0.5},{midi:64,duration:0.5},{midi:65,duration:1},
+      {midi:64,duration:1.5},{midi:62,duration:0.5},{midi:60,duration:2},
+    ] },
+
+  // You Are My Sunshine: ♩=96, country swing
+  { id: 's19', name: 'You Are My Sunshine', artist: 'Traditional', level: 'intermediate', bpm: 96, genre: 'Country', emoji: '☀️',
+    notes: [
+      {midi:60,duration:1},
+      {midi:64,duration:1.5},{midi:65,duration:0.5},{midi:64,duration:1},{midi:64,duration:1},
+      {midi:62,duration:2},{midi:60,duration:1},{midi:60,duration:1},
+      {midi:64,duration:1.5},{midi:65,duration:0.5},{midi:64,duration:1},{midi:64,duration:1},
+      {midi:62,duration:4},
+    ] },
+
+  // Over the Rainbow: ♩=72, ballad 4/4
   { id: 's20', name: 'Over the Rainbow', artist: 'Harold Arlen', level: 'intermediate', bpm: 72, genre: 'Musical', emoji: '🌈',
-    notes: [60,72,71,69,67,69,71,72,67,69,71,67,65,64,62,60].map(m => ({ midi: m, duration: 1.5 })) },
-  // Advanced
-  { id: 's9', name: 'Hallelujah', artist: 'Leonard Cohen', level: 'advanced', bpm: 72, genre: 'Indie', emoji: '✨',
-    notes: [60,60,62,64,64,62,64,65,65,64,62,60,60,62,64,67].map(m => ({ midi: m, duration: 1.5 })) },
-  { id: 's10', name: 'Ave Maria', artist: 'Schubert', level: 'advanced', bpm: 64, genre: 'Classical', emoji: '🎻',
-    notes: [60,64,67,72,72,71,67,64,65,64,60,67,65,64,62,60].map(m => ({ midi: m, duration: 2 })) },
+    notes: [
+      {midi:60,duration:2},{midi:72,duration:2},
+      {midi:71,duration:1.5},{midi:69,duration:0.5},{midi:71,duration:1},{midi:72,duration:1},
+      {midi:67,duration:3},{midi:0,duration:1},
+      {midi:69,duration:1.5},{midi:67,duration:0.5},{midi:69,duration:1},{midi:71,duration:1},
+      {midi:67,duration:4},
+    ] },
+
+  // ── Advanced ──────────────────────────────────────────────────────────────
+
+  // Hallelujah: ♩=52, slow 12/8 ballad feel
+  { id: 's9', name: 'Hallelujah', artist: 'Leonard Cohen', level: 'advanced', bpm: 52, genre: 'Indie', emoji: '✨',
+    notes: [
+      {midi:60,duration:2},{midi:60,duration:1},
+      {midi:62,duration:2},{midi:64,duration:1},
+      {midi:64,duration:2},{midi:62,duration:1},
+      {midi:64,duration:2},{midi:65,duration:1},
+      {midi:65,duration:2},{midi:64,duration:1},
+      {midi:62,duration:3},
+      {midi:60,duration:2},{midi:62,duration:1},
+      {midi:64,duration:3},
+      {midi:67,duration:4},
+    ] },
+
+  // Ave Maria (Schubert): ♩=58, very slow 4/4
+  { id: 's10', name: 'Ave Maria', artist: 'Schubert', level: 'advanced', bpm: 58, genre: 'Classical', emoji: '🎻',
+    notes: [
+      {midi:60,duration:1.5},{midi:64,duration:0.5},{midi:67,duration:1},{midi:72,duration:1},
+      {midi:72,duration:2},{midi:71,duration:0.5},{midi:69,duration:0.5},{midi:67,duration:1},
+      {midi:65,duration:1.5},{midi:64,duration:0.5},{midi:60,duration:2},
+      {midi:67,duration:1},{midi:65,duration:1},{midi:64,duration:1},{midi:62,duration:1},
+      {midi:60,duration:4},
+    ] },
+
+  // Bohemian Rhapsody (ballad section): ♩=72, 4/4
   { id: 's11', name: 'Bohemian Rhapsody', artist: 'Queen', level: 'advanced', bpm: 72, genre: 'Rock', emoji: '🎸',
-    notes: [67,67,67,65,67,69,69,65,62,60,60,62,64,65,64,62,60].map(m => ({ midi: m, duration: 1 })) },
-  { id: 's12', name: 'Someone Like You', artist: 'Adele', level: 'advanced', bpm: 68, genre: 'Pop', emoji: '💙',
-    notes: [64,64,67,67,69,69,67,67,64,64,62,60,60,62,64].map(m => ({ midi: m, duration: 1 })) },
+    notes: [
+      {midi:67,duration:1.5},{midi:67,duration:0.5},{midi:67,duration:0.5},{midi:65,duration:0.5},{midi:67,duration:1},
+      {midi:69,duration:1},{midi:69,duration:1},{midi:65,duration:1},{midi:62,duration:1},
+      {midi:60,duration:1.5},{midi:60,duration:0.5},{midi:62,duration:0.5},{midi:64,duration:0.5},{midi:65,duration:1},
+      {midi:64,duration:1.5},{midi:62,duration:0.5},{midi:60,duration:2},
+    ] },
+
+  // Someone Like You (Adele): ♩=67, 4/4 ballad
+  { id: 's12', name: 'Someone Like You', artist: 'Adele', level: 'advanced', bpm: 67, genre: 'Pop', emoji: '💙',
+    notes: [
+      {midi:64,duration:0.5},{midi:64,duration:1},{midi:67,duration:0.5},
+      {midi:67,duration:1},{midi:69,duration:1},{midi:69,duration:1},
+      {midi:67,duration:1.5},{midi:67,duration:0.5},
+      {midi:64,duration:1},{midi:64,duration:0.5},{midi:62,duration:0.5},
+      {midi:60,duration:1},{midi:60,duration:0.5},{midi:62,duration:0.5},{midi:64,duration:1},
+      {midi:64,duration:4},
+    ] },
+
+  // Stairway to Heaven (intro): ♩=72, 6/8 flowing arpeggio feel
   { id: 's21', name: 'Stairway to Heaven', artist: 'Led Zeppelin', level: 'advanced', bpm: 72, genre: 'Rock', emoji: '🎚️',
-    notes: [57,61,64,65,64,61,57,56,60,64,65,64,60,56].map(m => ({ midi: m, duration: 2 })) },
-  { id: 's22', name: 'Creep', artist: 'Radiohead', level: 'advanced', bpm: 76, genre: 'Alternative', emoji: '🎵',
-    notes: [67,67,65,65,64,64,62,60,60,62,64,65,67,67,65].map(m => ({ midi: m, duration: 1.5 })) },
-  { id: 's23', name: 'Somewhere Over the Rainbow (Jazz)', artist: 'Iz', level: 'advanced', bpm: 60, genre: 'Jazz', emoji: '🌺',
-    notes: [60,72,71,69,67,69,71,72,60,71,69,67,65,64,62,60].map(m => ({ midi: m, duration: 2 })) },
+    notes: [
+      {midi:57,duration:1},{midi:61,duration:1},{midi:64,duration:1},
+      {midi:65,duration:2},{midi:64,duration:1},
+      {midi:61,duration:1},{midi:57,duration:2},
+      {midi:56,duration:1},{midi:60,duration:1},{midi:64,duration:1},
+      {midi:65,duration:2},{midi:64,duration:1},
+      {midi:60,duration:1},{midi:56,duration:2},
+    ] },
+
+  // Creep (Radiohead): ♩=92, 4/4
+  { id: 's22', name: 'Creep', artist: 'Radiohead', level: 'advanced', bpm: 92, genre: 'Alternative', emoji: '🎵',
+    notes: [
+      {midi:67,duration:2},{midi:67,duration:1},{midi:65,duration:1},
+      {midi:65,duration:2},{midi:65,duration:1},{midi:64,duration:1},
+      {midi:64,duration:2},{midi:64,duration:1},{midi:62,duration:1},
+      {midi:60,duration:4},
+      {midi:60,duration:1},{midi:62,duration:1},{midi:64,duration:1},{midi:65,duration:1},
+      {midi:67,duration:2},{midi:67,duration:2},
+      {midi:65,duration:4},
+    ] },
+
+  // Over the Rainbow / Iz (jazz version): ♩=66, slow 4/4
+  { id: 's23', name: 'Somewhere Over the Rainbow', artist: 'Iz', level: 'advanced', bpm: 66, genre: 'Jazz', emoji: '🌺',
+    notes: [
+      {midi:60,duration:2},{midi:72,duration:2},
+      {midi:71,duration:1},{midi:69,duration:1},{midi:71,duration:1},{midi:72,duration:1},
+      {midi:67,duration:4},
+      {midi:0,duration:1},
+      {midi:69,duration:1},{midi:67,duration:1},{midi:69,duration:1},{midi:71,duration:1},
+      {midi:67,duration:4},
+    ] },
+
+  // What a Wonderful World: ♩=58, slow and warm
   { id: 's24', name: 'What a Wonderful World', artist: 'Louis Armstrong', level: 'advanced', bpm: 58, genre: 'Jazz', emoji: '🌍',
-    notes: [60,62,64,65,64,62,60,62,64,65,67,69,67,65,64,62].map(m => ({ midi: m, duration: 2 })) },
-  { id: 's25', name: 'My Way', artist: 'Frank Sinatra', level: 'advanced', bpm: 64, genre: 'Standards', emoji: '🎩',
-    notes: [60,62,64,65,64,62,60,64,65,67,69,72,71,69,67,65].map(m => ({ midi: m, duration: 1.5 })) },
+    notes: [
+      {midi:60,duration:0.5},{midi:62,duration:1.5},{midi:64,duration:0.5},{midi:65,duration:1.5},
+      {midi:64,duration:1},{midi:62,duration:1},{midi:60,duration:2},
+      {midi:62,duration:0.5},{midi:64,duration:1.5},{midi:65,duration:0.5},{midi:67,duration:1.5},
+      {midi:69,duration:1},{midi:67,duration:1},{midi:65,duration:2},
+      {midi:64,duration:1},{midi:65,duration:1},{midi:64,duration:1},{midi:62,duration:1},
+      {midi:60,duration:4},
+    ] },
+
+  // My Way (Sinatra): ♩=62, slow 4/4
+  { id: 's25', name: 'My Way', artist: 'Frank Sinatra', level: 'advanced', bpm: 62, genre: 'Standards', emoji: '🎩',
+    notes: [
+      {midi:60,duration:1.5},{midi:62,duration:0.5},{midi:64,duration:1},{midi:65,duration:1},
+      {midi:64,duration:2},{midi:62,duration:2},
+      {midi:60,duration:2},{midi:64,duration:1},{midi:65,duration:1},
+      {midi:67,duration:2},{midi:69,duration:2},
+      {midi:72,duration:2},{midi:71,duration:1},{midi:69,duration:1},
+      {midi:67,duration:4},
+    ] },
 ];
 
 // Daily challenge pool - rotates by day of year
