@@ -67,21 +67,23 @@ export default function SongMatchScreen() {
     previewCancelRef.current = false;
     setPreviewPlaying(true);
 
-    const noteDuration = Math.round((60 / song.bpm) * 1000); // ms per beat
+    // ms per beat — one quarter note = 60000/bpm ms
+    const beatMs = (60 / song.bpm) * 1000;
 
     for (let i = 0; i < song.notes.length; i++) {
       if (previewCancelRef.current) break;
       const n = song.notes[i];
       setPreviewNoteIdx(i);
+
+      const totalMs = beatMs * n.duration; // full duration this note occupies
+      const toneMs = Math.max(120, totalMs - 60);  // play tone slightly shorter for articulation gap
+
       if (n.midi !== 0) {
-        const freq = noteToFrequency(n.midi);
-        const dur = Math.max(150, noteDuration * n.duration - 60); // slight gap between notes
-        await playTone(freq, dur, 0.3);
-        await new Promise(r => setTimeout(r, noteDuration * n.duration - dur + 20));
-      } else {
-        // Rest
-        await new Promise(r => setTimeout(r, noteDuration * n.duration));
+        // Fire tone without awaiting — it schedules Web Audio internally
+        playTone(noteToFrequency(n.midi), toneMs, 0.32);
       }
+      // Always wait the full note duration before moving to the next note
+      await new Promise(r => setTimeout(r, totalMs));
     }
 
     setPreviewPlaying(false);
@@ -579,3 +581,4 @@ const styles = StyleSheet.create({
   backBtnFull: { margin: 16, marginTop: 0, padding: 14, alignItems: 'center' },
   backBtnText: { color: COLORS.textSecondary, fontSize: 14 },
 });
+
