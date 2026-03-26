@@ -32,6 +32,7 @@ export default function SongMatchScreen() {
   const [genreFilter, setGenreFilter] = useState('All');
   const [bests, setBests] = useState<Record<string, any>>({});
   const [replay, setReplay] = useState<SessionReplay | null>(null);
+  const [transpose, setTranspose] = useState(0);
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const [previewNoteIdx, setPreviewNoteIdx] = useState(-1);
   const previewCancelRef = useRef(false);
@@ -49,7 +50,10 @@ export default function SongMatchScreen() {
     return () => { previewCancelRef.current = true; };
   }, []));
 
-  const currentSongNote = selected?.notes[noteIdx];
+  // Apply transpose offset to all midi values
+  const transposedNotes = (song: SongMelody) =>
+    song.notes.map(n => ({ ...n, midi: n.midi === 0 ? 0 : n.midi + transpose }));
+  const currentSongNote = selected ? transposedNotes(selected)[noteIdx] : undefined;
   const filteredSongs = SONG_MELODIES.filter(s => {
     const levelOk = levelFilter === 'all' || s.level === levelFilter;
     const genreOk = genreFilter === 'All' || s.genre === genreFilter;
@@ -70,9 +74,10 @@ export default function SongMatchScreen() {
     // ms per beat — one quarter note = 60000/bpm ms
     const beatMs = (60 / song.bpm) * 1000;
 
-    for (let i = 0; i < song.notes.length; i++) {
+    const tNotes = transposedNotes(song);
+    for (let i = 0; i < tNotes.length; i++) {
       if (previewCancelRef.current) break;
-      const n = song.notes[i];
+      const n = tNotes[i];
       setPreviewNoteIdx(i);
 
       const totalMs = beatMs * n.duration; // full duration this note occupies
@@ -270,11 +275,11 @@ export default function SongMatchScreen() {
   // ── Song detail ─────────────────────────────────────────────────────────────
   if (selected) {
     const best = bests[selected.id];
-    const songNotes = selected.notes.filter(n => n.midi !== 0);
+    const songNotes = transposedNotes(selected).filter(n => n.midi !== 0);
     return (
       <View style={styles.container}>
         <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.header}>
-          <TouchableOpacity onPress={() => { stopPreview(); setSelected(null); }} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => { stopPreview(); setSelected(null); setTranspose(0); }} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={20} color={COLORS.textSecondary} />
             <Text style={styles.backText}>Songs</Text>
           </TouchableOpacity>
@@ -295,6 +300,36 @@ export default function SongMatchScreen() {
                 <Text style={[styles.metaValue, { color: c as string, textTransform: 'capitalize' }]}>{v}</Text>
               </View>
             ))}
+          </View>
+
+
+          {/* ── Transpose control ── */}
+          <View style={styles.transposeCard}>
+            <View style={styles.transposeHeader}>
+              <Text style={styles.transposeLabel}>🎚 Transpose</Text>
+              <Text style={[styles.transposeValue, { color: transpose === 0 ? COLORS.textMuted : COLORS.primaryLight }]}>
+                {transpose === 0 ? 'Original key' : `${transpose > 0 ? '+' : ''}${transpose} semitones`}
+              </Text>
+            </View>
+            <View style={styles.transposeRow}>
+              <TouchableOpacity style={styles.transposeBtn} onPress={() => setTranspose(t => Math.max(-12, t - 1))}>
+                <Ionicons name="remove" size={22} color={COLORS.text} />
+              </TouchableOpacity>
+              <View style={styles.transposeTrack}>
+                {[-4,-3,-2,-1,0,1,2,3,4].map(v => (
+                  <TouchableOpacity key={v} onPress={() => setTranspose(v)}
+                    style={[styles.transposePip, transpose === v && styles.transposePipActive, v === 0 && styles.transposePipCenter]} />
+                ))}
+              </View>
+              <TouchableOpacity style={styles.transposeBtn} onPress={() => setTranspose(t => Math.min(12, t + 1))}>
+                <Ionicons name="add" size={22} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+            {transpose !== 0 && (
+              <TouchableOpacity onPress={() => setTranspose(0)} style={styles.transposeReset}>
+                <Text style={styles.transposeResetText}>Reset to original key</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* ── Preview song player ── */}
@@ -348,7 +383,7 @@ export default function SongMatchScreen() {
             <View style={styles.noteGridSection}>
               <Text style={styles.noteGridLabel}>Tap any note to hear it</Text>
               <View style={styles.noteGrid}>
-                {songNotes.map((n, i) => {
+                {transposedNotes(selected).filter(n => n.midi !== 0).map((n, i) => {
                   const info = frequencyToNoteInfo(noteToFrequency(n.midi));
                   return (
                     <TouchableOpacity
@@ -383,7 +418,7 @@ export default function SongMatchScreen() {
             <Ionicons name="mic" size={22} color="#fff" />
             <Text style={styles.startBtnText}>Start Singing</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.backBtnFull} onPress={() => { stopPreview(); setSelected(null); }}>
+          <TouchableOpacity style={styles.backBtnFull} onPress={() => { stopPreview(); setSelected(null); setTranspose(0); }}>
             <Text style={styles.backBtnText}>← Back to Songs</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -419,7 +454,7 @@ export default function SongMatchScreen() {
         renderItem={({ item }) => {
           const best = bests[item.id];
           return (
-            <TouchableOpacity style={styles.songCard} onPress={() => setSelected(item)}>
+            <TouchableOpacity style={styles.songCard} onPress={() => { setSelected(item); setTranspose(0); }}>
               <View style={styles.songCardLeft}>
                 <Text style={styles.songEmoji}>{item.emoji}</Text>
                 <View style={{ flex: 1 }}>
@@ -580,5 +615,20 @@ const styles = StyleSheet.create({
   startBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
   backBtnFull: { margin: 16, marginTop: 0, padding: 14, alignItems: 'center' },
   backBtnText: { color: COLORS.textSecondary, fontSize: 14 },
+  // Transpose
+  transposeCard: { margin: 16, marginTop: 0, backgroundColor: '#13132A', borderRadius: BORDER_RADIUS.lg, padding: 14, borderWidth: 1, borderColor: '#2A2A50' },
+  transposeHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  transposeLabel: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  transposeValue: { fontSize: 13, fontWeight: '600' },
+  transposeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  transposeBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#1E1E3A', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#2A2A50' },
+  transposeTrack: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 38 },
+  transposePip: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#2A2A50' },
+  transposePipActive: { backgroundColor: COLORS.primaryLight, width: 14, height: 14, borderRadius: 7 },
+  transposePipCenter: { borderWidth: 1.5, borderColor: COLORS.textMuted },
+  transposeReset: { marginTop: 10, alignItems: 'center' },
+  transposeResetText: { fontSize: 12, color: COLORS.textMuted },
+
 });
+
 
