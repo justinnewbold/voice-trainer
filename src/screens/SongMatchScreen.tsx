@@ -10,7 +10,7 @@ import CountdownCircle from '../components/CountdownCircle';
 import { usePitchDetection } from '../hooks/usePitchDetection';
 import { useReferenceTone } from '../hooks/useReferenceTone';
 import { SONG_MELODIES, SongMelody } from '../utils/scales';
-import { noteToFrequency, frequencyToNoteInfo } from '../utils/pitchUtils';
+import { noteToFrequency, frequencyToNoteInfo, isNoteHit, getNoteMatchScore } from '../utils/pitchUtils';
 import { saveSession, getBests, getDailyChallengeStatus, markDailyChallengeComplete, getDailyChallenge } from '../utils/storage';
 import { createReplayBuilder, saveReplay, SessionReplay } from '../utils/sessionReplay';
 import { useHaptics } from '../hooks/useHaptics';
@@ -39,6 +39,7 @@ export default function SongMatchScreen() {
   const startRef = useRef<Date | null>(null);
   const replayBuilderRef = useRef<ReturnType<typeof createReplayBuilder> | null>(null);
   const noteStartRef = useRef<number>(0);
+  const holdStartRef = useRef<number>(0);
 
   const { noteInfo, pitchHint, isListening, volume, color, startListening, stopListening } = usePitchDetection();
   const { playTone, playNote, playing: tonePlaying } = useReferenceTone();
@@ -114,23 +115,35 @@ export default function SongMatchScreen() {
       });
     }
 
-    const isMatch = noteInfo.note !== '-' && noteInfo.note === targetInfo.note && Math.abs(noteInfo.cents) < 30;
-    if (isMatch) {
-      const newCombo = combo + 1;
-      const points = 100 + (newCombo > 1 ? newCombo * 10 : 0);
-      replayBuilderRef.current?.recordNoteResult({
-        targetNote: targetInfo.note + targetInfo.octave, targetMidi: currentSongNote.midi,
-        sungNote: noteInfo.note + noteInfo.octave, cents: noteInfo.cents, hit: true,
-        timeToHit: Date.now() - noteStartRef.current,
-      });
-      hitNote();
-      if (newCombo % 5 === 0) hitCombo();
-      setScore(s => s + points);
-      setCombo(newCombo);
-      setResults(prev => [...prev, 100]);
+    const noteMatches = noteInfo.note !== '-' && noteInfo.note === targetInfo.note && isNoteHit(noteInfo.cents);
+
+    if (noteMatches) {
+      if (holdStartRef.current === 0) holdStartRef.current = Date.now();
+      const holdDuration = Date.now() - holdStartRef.current;
+      if (holdDuration < 120) return;
+    } else {
+      holdStartRef.current = 0;
+      return;
+    }
+
+    holdStartRef.current = 0;
+    const matchScore = getNoteMatchScore(noteInfo.cents);
+    const newCombo = combo + 1;
+    const points = Math.round(matchScore + (newCombo > 1 ? newCombo * 10 : 0));
+    replayBuilderRef.current?.recordNoteResult({
+      targetNote: targetInfo.note + targetInfo.octave, targetMidi: currentSongNote.midi,
+      sungNote: noteInfo.note + noteInfo.octave, cents: noteInfo.cents, hit: true,
+      timeToHit: Date.now() - noteStartRef.current,
+    });
+    hitNote();
+    if (newCombo % 5 === 0) hitCombo();
+    setScore(s => s + points);
+    setCombo(newCombo);
+    setResults(prev => [...prev, matchScore]);
       const next = noteIdx + 1;
       if (next >= selected.notes.length) { finishSong(newCombo); return; }
       noteStartRef.current = Date.now();
+      holdStartRef.current = 0;
       setNoteIdx(next);
     }
   }, [noteInfo, isRunning]);
@@ -630,5 +643,6 @@ const styles = StyleSheet.create({
   transposeResetText: { fontSize: 12, color: COLORS.textMuted },
 
 });
+
 
 
