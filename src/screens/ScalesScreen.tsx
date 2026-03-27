@@ -84,12 +84,11 @@ export default function ScalesScreen() {
       timeToHit: Date.now() - noteStartRef.current,
     });
     setResults(prev => [...prev, matchScore]);
-      const next = noteIdx + 1;
-      if (next >= selected.notes.length) { finishExercise(); return; }
-      noteStartRef.current = Date.now();
-      holdStartRef.current = 0;
-      setNoteIdx(next);
-    }
+    const next = noteIdx + 1;
+    if (next >= selected.notes.length) { finishExercise(); return; }
+    noteStartRef.current = Date.now();
+    holdStartRef.current = 0;
+    setNoteIdx(next);
   }, [noteInfo, isRunning]);
 
   const startExercise = async () => {
