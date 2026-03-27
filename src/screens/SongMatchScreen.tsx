@@ -140,12 +140,11 @@ export default function SongMatchScreen() {
     setScore(s => s + points);
     setCombo(newCombo);
     setResults(prev => [...prev, matchScore]);
-      const next = noteIdx + 1;
-      if (next >= selected.notes.length) { finishSong(newCombo); return; }
-      noteStartRef.current = Date.now();
-      holdStartRef.current = 0;
-      setNoteIdx(next);
-    }
+    const next = noteIdx + 1;
+    if (next >= selected.notes.length) { finishSong(newCombo); return; }
+    noteStartRef.current = Date.now();
+    holdStartRef.current = 0;
+    setNoteIdx(next);
   }, [noteInfo, isRunning]);
 
   // ── Start song ──────────────────────────────────────────────────────────────
