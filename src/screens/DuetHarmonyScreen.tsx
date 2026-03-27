@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Line, Text as SvgText, Path } from 'react-native-svg';
 import { COLORS, BORDER_RADIUS, SPACING, FONTS } from '../constants/theme';
 import { usePitchDetection } from '../hooks/usePitchDetection';
+import { useKeepAwake } from '../hooks/useKeepAwake';
 import { useReferenceTone } from '../hooks/useReferenceTone';
 
 // ── Music theory ──────────────────────────────────────────────────────────────

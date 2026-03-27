@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { loadProgress, UserProgress, levelInfo, getGems, getDailyProgress, getDailyChallengeStatus, markDailyChallengeComplete, loadSettings } from '../utils/storage';
 import { getDailyChallenge, EXERCISES, SONG_MELODIES } from '../utils/scales';
+import { clearBadge } from '../hooks/useNotifications';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -25,7 +26,11 @@ export default function HomeScreen() {
     if (!s.notificationsEnabled && p.totalSessions >= 2) setShowNotifPrompt(true);
   }, []);
 
-  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
+  useFocusEffect(useCallback(() => {
+    fetchData();
+    // Clear app icon badge when user opens the app
+    clearBadge();
+  }, [fetchData]));
   const onRefresh = async () => { setRefreshing(true); await fetchData(); setRefreshing(false); };
 
   const li = progress ? levelInfo(progress.xp) : null;

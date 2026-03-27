@@ -4,7 +4,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
-import { loadProgress, clearProgress, UserProgress, levelInfo, getGems, getAchievements, ACHIEVEMENT_DEFS, getCalendarData, getBests, SessionResult } from '../utils/storage';
+import { loadProgress, clearProgress, UserProgress, levelInfo, getGems, getAchievements, ACHIEVEMENT_DEFS, getCalendarData, getBests, SessionResult, deleteSession } from '../utils/storage';
+import SwipeableRow from '../components/SwipeableRow';
+import { A11Y } from '../hooks/useAccessibility';
 
 export default function ProgressScreen() {
   const [progress, setProgress] = useState<UserProgress | null>(null);
@@ -164,19 +166,36 @@ export default function ProgressScreen() {
             <Text style={styles.emptyText}>No sessions yet. Start practicing!</Text>
           )}
           {progress?.sessions?.map(s => (
-            <TouchableOpacity key={s.id} style={styles.sessionRow} onPress={() => setSelectedSession(s)}>
-              <View style={styles.sessionIcon}><Text>{s.type === 'song' ? '🎶' : s.type === 'warmup' ? '🔥' : '🎵'}</Text></View>
-              <View style={styles.sessionInfo}>
-                <Text style={styles.sessionName}>{s.exerciseName}</Text>
-                <Text style={styles.sessionMeta}>{new Date(s.date).toLocaleDateString()} {new Date(s.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {Math.floor(s.duration / 60)}m {s.duration % 60}s</Text>
-              </View>
-              <View style={styles.sessionRight}>
-                <View style={[styles.accBadge, { backgroundColor: s.accuracy >= 80 ? COLORS.success + '33' : s.accuracy >= 60 ? COLORS.warning + '33' : COLORS.danger + '33' }]}>
-                  <Text style={[styles.accText, { color: s.accuracy >= 80 ? COLORS.success : s.accuracy >= 60 ? COLORS.warning : COLORS.danger }]}>{s.accuracy}%</Text>
+            <SwipeableRow
+              key={s.id}
+              onDelete={async () => {
+                await deleteSession(s.id);
+                fetch();
+              }}
+              confirmMessage={`Delete "${s.exerciseName}" session?`}
+            >
+              <TouchableOpacity
+                style={styles.sessionRow}
+                onPress={() => setSelectedSession(s)}
+                {...A11Y.sessionItem(
+                  s.exerciseName,
+                  s.accuracy,
+                  new Date(s.date).toLocaleDateString()
+                )}
+              >
+                <View style={styles.sessionIcon}><Text>{s.type === 'song' ? '🎶' : s.type === 'warmup' ? '🔥' : '🎵'}</Text></View>
+                <View style={styles.sessionInfo}>
+                  <Text style={styles.sessionName}>{s.exerciseName}</Text>
+                  <Text style={styles.sessionMeta}>{new Date(s.date).toLocaleDateString()} {new Date(s.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {Math.floor(s.duration / 60)}m {s.duration % 60}s</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
-              </View>
-            </TouchableOpacity>
+                <View style={styles.sessionRight}>
+                  <View style={[styles.accBadge, { backgroundColor: s.accuracy >= 80 ? COLORS.success + '33' : s.accuracy >= 60 ? COLORS.warning + '33' : COLORS.danger + '33' }]}>
+                    <Text style={[styles.accText, { color: s.accuracy >= 80 ? COLORS.success : s.accuracy >= 60 ? COLORS.warning : COLORS.danger }]}>{s.accuracy}%</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
+                </View>
+              </TouchableOpacity>
+            </SwipeableRow>
           ))}
         </View>
       )}

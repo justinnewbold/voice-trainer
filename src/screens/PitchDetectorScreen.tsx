@@ -6,6 +6,8 @@ import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import PitchMeter from '../components/PitchMeter';
 import WaveformDisplay from '../components/WaveformDisplay';
 import { usePitchDetection } from '../hooks/usePitchDetection';
+import { useKeepAwake } from '../hooks/useKeepAwake';
+import { A11Y } from '../hooks/useAccessibility';
 import { saveSession } from '../utils/storage';
 
 export default function PitchDetectorScreen() {
@@ -14,6 +16,9 @@ export default function PitchDetectorScreen() {
   const [sessionStart, setSessionStart] = useState<Date | null>(null);
   const [onPitchCount, setOnPitchCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+
+  // 🔒 Keep screen awake during active pitch sessions
+  useKeepAwake(isListening);
 
   useEffect(() => {
     if (isListening && pitchHint !== 'silent') {
@@ -46,38 +51,47 @@ export default function PitchDetectorScreen() {
   const avgAcc = sessionAccuracies.length > 0 ? Math.round(sessionAccuracies.reduce((a, b) => a + b, 0) / sessionAccuracies.length) : 0;
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} accessibilityRole="main">
       <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.header}>
-        <Text style={styles.title}>Pitch Detector</Text>
+        <Text style={styles.title} accessibilityRole="header">Pitch Detector</Text>
         <Text style={styles.subtitle}>{isListening ? 'Sing and match the pitch!' : 'Tap to start detecting'}</Text>
       </LinearGradient>
 
       <View style={styles.content}>
-        <PitchMeter
-          note={noteInfo.note} octave={noteInfo.octave} cents={noteInfo.cents}
-          frequency={frequency} pitchHint={pitchHint} color={color} volume={volume}
-          isStable={false}
-        />
+        <View {...A11Y.pitchMeter(noteInfo.note, noteInfo.cents, frequency)}>
+          <PitchMeter
+            note={noteInfo.note} octave={noteInfo.octave} cents={noteInfo.cents}
+            frequency={frequency} pitchHint={pitchHint} color={color} volume={volume}
+            isStable={false}
+          />
+        </View>
 
-        <WaveformDisplay volume={volume} color={color} isListening={isListening} />
+        <View {...A11Y.volumeLevel(volume)}>
+          <WaveformDisplay volume={volume} color={color} isListening={isListening} />
+        </View>
 
         {/* Session stats */}
         {isListening && totalCount > 0 && (
-          <View style={styles.sessionStats}>
-            <View style={styles.sessionStat}>
+          <View style={styles.sessionStats} accessibilityRole="summary">
+            <View style={styles.sessionStat} {...A11Y.statItem('Accuracy', `${avgAcc}%`)}>
               <Text style={styles.sessionValue}>{avgAcc}%</Text>
               <Text style={styles.sessionLabel}>Accuracy</Text>
             </View>
-            <View style={styles.sessionStat}>
+            <View style={styles.sessionStat} {...A11Y.statItem('On Pitch', `${onPitchCount} of ${totalCount}`)}>
               <Text style={styles.sessionValue}>{onPitchCount}/{totalCount}</Text>
               <Text style={styles.sessionLabel}>On Pitch</Text>
             </View>
           </View>
         )}
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        {error && <Text style={styles.errorText} accessibilityRole="alert">{error}</Text>}
 
-        <TouchableOpacity style={[styles.button, isListening && styles.buttonStop]} onPress={handleToggle} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={[styles.button, isListening && styles.buttonStop]}
+          onPress={handleToggle}
+          activeOpacity={0.7}
+          {...A11Y.startButton(isListening)}
+        >
           <Ionicons name={isListening ? 'stop' : 'mic'} size={24} color="#fff" />
           <Text style={styles.buttonText}>{isListening ? 'Stop' : 'Start Listening'}</Text>
         </TouchableOpacity>
@@ -88,7 +102,7 @@ export default function PitchDetectorScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { paddingTop: 60, paddingBottom: SPACING.lg, paddingHorizontal: SPACING.lg },
+  header: { paddingTop: Platform.OS === 'ios' ? 60 : Platform.OS === 'android' ? 48 : 24, paddingBottom: SPACING.lg, paddingHorizontal: SPACING.lg },
   title: { fontSize: FONTS.sizes.xl, fontWeight: FONTS.weights.black, color: COLORS.text },
   subtitle: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginTop: 4 },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.lg, gap: SPACING.lg },
