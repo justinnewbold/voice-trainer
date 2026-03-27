@@ -12,7 +12,7 @@ import { useReferenceTone } from '../hooks/useReferenceTone';
 import { useSoundEffects } from '../hooks/useSoundEffects';
 import { useHaptics } from '../hooks/useHaptics';
 import { EXERCISES, Exercise } from '../utils/scales';
-import { noteToFrequency, frequencyToNoteInfo } from '../utils/pitchUtils';
+import { noteToFrequency, frequencyToNoteInfo, isNoteHit, getNoteMatchScore } from '../utils/pitchUtils';
 import { saveSession, getBests } from '../utils/storage';
 import { createReplayBuilder, saveReplay, SessionReplay } from '../utils/sessionReplay';
 
@@ -33,6 +33,7 @@ export default function ScalesScreen() {
   const startRef = useRef<Date | null>(null);
   const replayBuilderRef = useRef<ReturnType<typeof createReplayBuilder> | null>(null);
   const noteStartRef = useRef<number>(0);
+  const holdStartRef = useRef<number>(0); // when we first detected the current note correctly
 
   const { noteInfo, pitchHint, isListening, volume, color, startListening, stopListening } = usePitchDetection();
   const { playNote, playing: tonePlaying } = useReferenceTone();
@@ -58,19 +59,35 @@ export default function ScalesScreen() {
       });
     }
 
-    const isMatch = noteInfo.note !== '-' && noteInfo.note === targetInfo.note && Math.abs(noteInfo.cents) < 30;
-    if (isMatch) {
-      playNoteHit();
-      hitNote();
-      replayBuilderRef.current?.recordNoteResult({
-        targetNote: targetInfo.note + targetInfo.octave, targetMidi: currentNote,
-        sungNote: noteInfo.note + noteInfo.octave, cents: noteInfo.cents, hit: true,
-        timeToHit: Date.now() - noteStartRef.current,
-      });
-      setResults(prev => [...prev, 100]);
+    // Note matches if same note name AND within 50 cents (isNoteHit)
+    const noteMatches = noteInfo.note !== '-' && noteInfo.note === targetInfo.note && isNoteHit(noteInfo.cents);
+
+    if (noteMatches) {
+      // Start hold timer on first matching frame
+      if (holdStartRef.current === 0) holdStartRef.current = Date.now();
+      // Require 120ms hold to count as a real hit (eliminates transient glitches)
+      const holdDuration = Date.now() - holdStartRef.current;
+      if (holdDuration < 120) return; // not yet
+    } else {
+      holdStartRef.current = 0; // reset hold if note drifts away
+      return;
+    }
+
+    // Note confirmed — record with partial score based on accuracy
+    const matchScore = getNoteMatchScore(noteInfo.cents);
+    holdStartRef.current = 0;
+    playNoteHit();
+    hitNote();
+    replayBuilderRef.current?.recordNoteResult({
+      targetNote: targetInfo.note + targetInfo.octave, targetMidi: currentNote,
+      sungNote: noteInfo.note + noteInfo.octave, cents: noteInfo.cents, hit: true,
+      timeToHit: Date.now() - noteStartRef.current,
+    });
+    setResults(prev => [...prev, matchScore]);
       const next = noteIdx + 1;
       if (next >= selected.notes.length) { finishExercise(); return; }
       noteStartRef.current = Date.now();
+      holdStartRef.current = 0;
       setNoteIdx(next);
     }
   }, [noteInfo, isRunning]);
@@ -87,6 +104,7 @@ export default function ScalesScreen() {
     }
     setCountdown(0);
     noteStartRef.current = Date.now();
+    holdStartRef.current = 0;
     await startListening();
     startRef.current = new Date();
     setIsRunning(true);
@@ -355,4 +373,5 @@ const styles = StyleSheet.create({
   stopBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.danger, paddingHorizontal: 24, paddingVertical: 12, borderRadius: BORDER_RADIUS.lg },
   stopText: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.bold, color: '#fff' },
 });
+
 
