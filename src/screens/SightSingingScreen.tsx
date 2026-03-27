@@ -8,6 +8,7 @@ import { usePitchDetection } from '../hooks/usePitchDetection';
 import { useReferenceTone } from '../hooks/useReferenceTone';
 import { useSoundEffects } from '../hooks/useSoundEffects';
 import { useHaptics } from '../hooks/useHaptics';
+import { useKeepAwake } from '../hooks/useKeepAwake';
 import Confetti from '../components/Confetti';
 
 // ── Music theory constants ────────────────────────────────────────────────────

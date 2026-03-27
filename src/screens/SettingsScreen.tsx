@@ -4,7 +4,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
-import { loadSettings, saveSettings, clearProgress, loadVocalRange, AppSettings, defaultSettings } from '../utils/storage';
+import { loadSettings, saveSettings, clearProgress, loadVocalRange, loadProgress, AppSettings, defaultSettings } from '../utils/storage';
+import { useNotifications } from '../hooks/useNotifications';
 
 const THEMES = [
   { id: 'dark', label: 'Dark', color: '#0A0A1A', accent: '#7c6af7' },
@@ -30,6 +31,7 @@ export default function SettingsScreen() {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [vocalRange, setVocalRange] = useState<any>(null);
   const [saved, setSaved] = useState(false);
+  const { enable: enableNotifs, disable: disableNotifs, updateBadge } = useNotifications();
 
   useFocusEffect(useCallback(() => {
     (async () => {
@@ -49,6 +51,7 @@ export default function SettingsScreen() {
 
   const requestNotifications = async () => {
     if (Platform.OS === 'web') {
+      // Web: browser Notification API
       if ('Notification' in window) {
         const perm = await Notification.requestPermission();
         if (perm === 'granted') {
@@ -59,8 +62,37 @@ export default function SettingsScreen() {
         }
       }
     } else {
-      // On native, would use expo-notifications
-      await update({ notificationsEnabled: true });
+      // Native: real iOS/Android scheduled notifications
+      const progress = await loadProgress();
+      const granted = await enableNotifs({
+        reminderHour: settings.reminderHour,
+        streakCount: progress.currentStreak,
+      });
+      if (granted) {
+        await update({ notificationsEnabled: true });
+        // Set badge to streak count
+        await updateBadge(progress.currentStreak);
+      } else {
+        Alert.alert(
+          'Notifications Disabled',
+          'Please enable notifications for Voice Trainer in your device Settings.',
+          [{ text: 'OK' }]
+        );
+      }
+    }
+  };
+
+  const handleDisableNotifications = async () => {
+    await disableNotifs();
+    await update({ notificationsEnabled: false });
+  };
+
+  const handleReminderTimeChange = async (hour: number) => {
+    await update({ reminderHour: hour });
+    // Reschedule with new time
+    if (settings.notificationsEnabled && Platform.OS !== 'web') {
+      const progress = await loadProgress();
+      await enableNotifs({ reminderHour: hour, streakCount: progress.currentStreak });
     }
   };
 
@@ -77,7 +109,7 @@ export default function SettingsScreen() {
   return (
     <ScrollView style={styles.container}>
       <LinearGradient colors={['#1a0a2e', '#0A0A1A']} style={styles.header}>
-        <Text style={styles.title}>⚙️ Settings</Text>
+        <Text style={styles.title} accessibilityRole="header">⚙️ Settings</Text>
         {saved && <Text style={styles.savedBadge}>✓ Saved</Text>}
       </LinearGradient>
 
@@ -87,13 +119,18 @@ export default function SettingsScreen() {
         <View style={styles.row}>
           <View style={styles.rowLeft}>
             <Text style={styles.rowLabel}>Daily Reminders</Text>
-            <Text style={styles.rowSub}>Get reminded to practice each day</Text>
+            <Text style={styles.rowSub}>
+              {Platform.OS === 'web'
+                ? 'Get reminded to practice each day'
+                : 'Scheduled iOS notifications at your chosen time'}
+            </Text>
           </View>
           <Switch
             value={settings.notificationsEnabled}
-            onValueChange={v => v ? requestNotifications() : update({ notificationsEnabled: false })}
+            onValueChange={v => v ? requestNotifications() : handleDisableNotifications()}
             trackColor={{ false: '#2A2A50', true: COLORS.primary }}
             thumbColor="#fff"
+            accessibilityLabel="Enable daily practice reminders"
           />
         </View>
         {settings.notificationsEnabled && (
@@ -103,21 +140,53 @@ export default function SettingsScreen() {
               {REMINDER_HOURS.map(h => (
                 <TouchableOpacity key={h.value}
                   style={[styles.chip, settings.reminderHour === h.value && styles.chipActive]}
-                  onPress={() => update({ reminderHour: h.value })}>
+                  onPress={() => handleReminderTimeChange(h.value)}
+                  accessibilityLabel={`Set reminder to ${h.label}`}
+                  accessibilityState={{ selected: settings.reminderHour === h.value }}>
                   <Text style={[styles.chipText, settings.reminderHour === h.value && styles.chipTextActive]}>{h.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
+            {Platform.OS !== 'web' && (
+              <Text style={styles.nativeHint}>
+                🔔 Notifications will fire even when the app is closed
+              </Text>
+            )}
           </View>
         )}
       </View>
+
+      {/* App Icon Badge */}
+      {Platform.OS !== 'web' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📛 App Badge</Text>
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <Text style={styles.rowLabel}>Show Streak on Icon</Text>
+              <Text style={styles.rowSub}>Your current streak count appears as a badge on the app icon</Text>
+            </View>
+            <Switch
+              value={settings.notificationsEnabled}
+              disabled={true}
+              trackColor={{ false: '#2A2A50', true: COLORS.primary }}
+              thumbColor="#fff"
+              accessibilityLabel="Streak badge on app icon"
+            />
+          </View>
+          <Text style={styles.nativeHint}>
+            Badge updates automatically when notifications are enabled
+          </Text>
+        </View>
+      )}
 
       {/* Daily Goal */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>🎯 Daily XP Goal</Text>
         {DAILY_GOALS.map(g => (
           <TouchableOpacity key={g.value} style={[styles.row, styles.rowClickable]}
-            onPress={() => update({ dailyGoalXP: g.value })}>
+            onPress={() => update({ dailyGoalXP: g.value })}
+            accessibilityLabel={`Set daily goal to ${g.label}`}
+            accessibilityState={{ selected: settings.dailyGoalXP === g.value }}>
             <Text style={styles.rowLabel}>{g.label}</Text>
             {settings.dailyGoalXP === g.value && <Ionicons name="checkmark-circle" size={22} color={COLORS.primary} />}
           </TouchableOpacity>
@@ -131,7 +200,9 @@ export default function SettingsScreen() {
           {THEMES.map(t => (
             <TouchableOpacity key={t.id}
               style={[styles.themeCard, settings.theme === t.id && styles.themeCardActive]}
-              onPress={() => update({ theme: t.id as any })}>
+              onPress={() => update({ theme: t.id as any })}
+              accessibilityLabel={`${t.label} theme`}
+              accessibilityState={{ selected: settings.theme === t.id }}>
               <View style={[styles.themeSwatch, { backgroundColor: t.color, borderColor: t.accent }]} />
               <Text style={[styles.themeLabel, settings.theme === t.id && styles.themeLabelActive]}>{t.label}</Text>
               {settings.theme === t.id && <Ionicons name="checkmark-circle" size={16} color={COLORS.primaryLight} />}
@@ -172,17 +243,18 @@ export default function SettingsScreen() {
           <Text style={styles.rowLabel}>Metronome Volume</Text>
           <Text style={styles.rowValue}>{Math.round(settings.metronomeVolume * 100)}%</Text>
         </View>
-        <View style={styles.sliderRow}>
+        <View style={styles.sliderRow} accessibilityLabel={`Metronome volume: ${Math.round(settings.metronomeVolume * 100)}%`}>
           {[0.2, 0.4, 0.6, 0.8, 1.0].map(v => (
             <TouchableOpacity key={v} style={[styles.sliderDot, settings.metronomeVolume >= v && styles.sliderDotActive]}
-              onPress={() => update({ metronomeVolume: v })} />
+              onPress={() => update({ metronomeVolume: v })}
+              accessibilityLabel={`${Math.round(v * 100)}%`} />
           ))}
         </View>
         <View style={[styles.row, { marginTop: 12 }]}>
           <Text style={styles.rowLabel}>Drone Tone Volume</Text>
           <Text style={styles.rowValue}>{Math.round(settings.droneVolume * 100)}%</Text>
         </View>
-        <View style={styles.sliderRow}>
+        <View style={styles.sliderRow} accessibilityLabel={`Drone volume: ${Math.round(settings.droneVolume * 100)}%`}>
           {[0.2, 0.4, 0.6, 0.8, 1.0].map(v => (
             <TouchableOpacity key={v} style={[styles.sliderDot, settings.droneVolume >= v && styles.sliderDotActive]}
               onPress={() => update({ droneVolume: v })} />
@@ -193,7 +265,7 @@ export default function SettingsScreen() {
       {/* Danger Zone */}
       <View style={[styles.section, styles.dangerSection]}>
         <Text style={styles.sectionTitle}>⚠️ Danger Zone</Text>
-        <TouchableOpacity style={styles.dangerBtn} onPress={handleReset}>
+        <TouchableOpacity style={styles.dangerBtn} onPress={handleReset} accessibilityLabel="Reset all progress" accessibilityRole="button">
           <Ionicons name="trash" size={18} color="#ef4444" />
           <Text style={styles.dangerBtnText}>Reset All Progress</Text>
         </TouchableOpacity>
@@ -202,7 +274,7 @@ export default function SettingsScreen() {
 
       {/* App Info */}
       <View style={styles.infoSection}>
-        <Text style={styles.infoText}>Voice Trainer v2.0</Text>
+        <Text style={styles.infoText}>Voice Trainer v2.1 — iOS Native Polish</Text>
         <Text style={styles.infoText}>Built with ♥ by Anthropic Claude</Text>
       </View>
       <View style={{ height: 40 }} />
@@ -212,10 +284,10 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { paddingTop: 56, paddingBottom: 20, paddingHorizontal: SPACING.lg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  header: { paddingTop: Platform.OS === 'ios' ? 60 : Platform.OS === 'android' ? 48 : 24, paddingBottom: 20, paddingHorizontal: SPACING.lg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text },
   savedBadge: { fontSize: 13, color: COLORS.success, fontWeight: '600' },
-  section: { margin: 16, marginBottom: 0, backgroundColor: '#13132A', borderRadius: BORDER_RADIUS.lg, padding: 16, borderWidth: 1, borderColor: '#2A2A50' },
+  section: { margin: 16, marginBottom: 0, backgroundColor: '#13132A', borderRadius: BORDER_RADIUS.lg, padding: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: '#2A2A50' },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: COLORS.primaryLight, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
   rowClickable: { borderRadius: 8 },
@@ -223,13 +295,14 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 15, color: COLORS.text },
   rowSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   rowValue: { fontSize: 14, color: COLORS.primaryLight, fontWeight: '600' },
-  subSection: { marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#2A2A50' },
+  subSection: { marginTop: 8, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#2A2A50' },
   subLabel: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: '#1E1E3A', borderWidth: 1, borderColor: '#2A2A50' },
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipText: { fontSize: 12, color: COLORS.textSecondary },
   chipTextActive: { color: '#fff', fontWeight: '600' },
+  nativeHint: { fontSize: 12, color: COLORS.accent, marginTop: 10, fontStyle: 'italic' },
   themeRow: { flexDirection: 'row', gap: 12 },
   themeCard: { flex: 1, alignItems: 'center', padding: 12, borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: '#2A2A50', gap: 6 },
   themeCardActive: { borderColor: COLORS.primary },

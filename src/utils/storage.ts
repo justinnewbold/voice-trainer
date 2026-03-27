@@ -137,6 +137,15 @@ export async function clearProgress(): Promise<void> {
   await setItem(DAILY_CHALLENGE_KEY, '{}');
 }
 
+export async function deleteSession(sessionId: string): Promise<void> {
+  const p = await loadProgress();
+  p.sessions = (p.sessions || []).filter(s => s.id !== sessionId);
+  p.totalSessions = Math.max(0, (p.totalSessions || 1) - 1);
+  const recent = p.sessions.slice(0, 10);
+  p.avgAccuracy = recent.length > 0 ? Math.round(recent.reduce((a, s) => a + s.accuracy, 0) / recent.length) : 0;
+  await setItem(PROGRESS_KEY, JSON.stringify(p));
+}
+
 // ─── Vocal Range ────────────────────────────────────────────────────────────
 export async function loadVocalRange(): Promise<VocalRange | null> {
   const raw = await getItem(RANGE_KEY);

@@ -14,6 +14,9 @@ import { noteToFrequency, frequencyToNoteInfo, isNoteHit, getNoteMatchScore } fr
 import { saveSession, getBests, getDailyChallengeStatus, markDailyChallengeComplete, getDailyChallenge } from '../utils/storage';
 import { createReplayBuilder, saveReplay, SessionReplay } from '../utils/sessionReplay';
 import { useHaptics } from '../hooks/useHaptics';
+import { useKeepAwake } from '../hooks/useKeepAwake';
+import ContextMenu from '../components/ContextMenu';
+import { A11Y } from '../hooks/useAccessibility';
 
 const LEVEL_COLORS: Record<string, string> = { beginner: COLORS.success, intermediate: COLORS.warning, advanced: COLORS.danger };
 type LevelFilter = 'all' | 'beginner' | 'intermediate' | 'advanced';
@@ -44,6 +47,9 @@ export default function SongMatchScreen() {
   const { noteInfo, pitchHint, isListening, volume, color, startListening, stopListening } = usePitchDetection();
   const { playTone, playNote, playing: tonePlaying } = useReferenceTone();
   const { hitNote, hitCombo, completeFanfare, miss } = useHaptics();
+
+  // Keep screen awake during active song sessions
+  useKeepAwake(isRunning);
 
   useFocusEffect(useCallback(() => {
     getBests().then(setBests);
@@ -466,7 +472,19 @@ export default function SongMatchScreen() {
         renderItem={({ item }) => {
           const best = bests[item.id];
           return (
-            <TouchableOpacity style={styles.songCard} onPress={() => { setSelected(item); setTranspose(0); }}>
+            <ContextMenu
+              actions={[
+                { label: 'Start Song', icon: 'play', onPress: () => { setSelected(item); setTranspose(0); } },
+                { label: 'Preview Melody', icon: 'musical-notes', onPress: () => { setSelected(item); setTranspose(0); } },
+                ...(best ? [{ label: `Best: ${best.accuracy}%`, icon: 'trophy' as const, onPress: () => {} }] : []),
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.songCard}
+                onPress={() => { setSelected(item); setTranspose(0); }}
+                accessibilityLabel={`${item.name} by ${item.artist}, ${item.level} level${best ? `, best score ${best.accuracy}%` : ''}`}
+                accessibilityRole="button"
+              >
               <View style={styles.songCardLeft}>
                 <Text style={styles.songEmoji}>{item.emoji}</Text>
                 <View style={{ flex: 1 }}>
@@ -491,6 +509,7 @@ export default function SongMatchScreen() {
                 )}
               </View>
             </TouchableOpacity>
+            </ContextMenu>
           );
         }}
       />

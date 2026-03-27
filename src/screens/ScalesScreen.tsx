@@ -15,6 +15,9 @@ import { EXERCISES, Exercise } from '../utils/scales';
 import { noteToFrequency, frequencyToNoteInfo, isNoteHit, getNoteMatchScore } from '../utils/pitchUtils';
 import { saveSession, getBests } from '../utils/storage';
 import { createReplayBuilder, saveReplay, SessionReplay } from '../utils/sessionReplay';
+import { useKeepAwake } from '../hooks/useKeepAwake';
+import ContextMenu from '../components/ContextMenu';
+import { A11Y } from '../hooks/useAccessibility';
 
 type Level = 'all' | 'beginner' | 'intermediate' | 'advanced';
 const LEVEL_COLORS: Record<string, string> = { beginner: COLORS.success, intermediate: COLORS.warning, advanced: COLORS.danger };
@@ -39,6 +42,9 @@ export default function ScalesScreen() {
   const { playNote, playing: tonePlaying } = useReferenceTone();
   const { playNoteHit, playFanfare, playComplete, playCountdownBeep } = useSoundEffects();
   const { hitNote, hitCombo, completeFanfare, countdownTick } = useHaptics();
+
+  // Keep screen awake during active exercises
+  useKeepAwake(isRunning);
 
   useEffect(() => { getBests().then(setBests); }, []);
 
@@ -297,15 +303,28 @@ export default function ScalesScreen() {
         renderItem={({ item }) => {
           const best = bests[item.id];
           return (
-            <TouchableOpacity style={styles.exerciseCard} onPress={() => { setSelected(item); setTranspose(0); }} activeOpacity={0.7}>
-              <View style={[styles.levelDot, { backgroundColor: LEVEL_COLORS[item.level] }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.exerciseName}>{item.name}</Text>
-                <Text style={styles.exerciseDesc}>{item.description} · {item.notes.length} notes · {item.bpm} BPM</Text>
-              </View>
-              {best ? <Text style={[styles.bestMini, { color: best.accuracy >= 80 ? COLORS.success : COLORS.warning }]}>{best.accuracy}%</Text>
-                : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
-            </TouchableOpacity>
+            <ContextMenu
+              actions={[
+                { label: 'Start Exercise', icon: 'play', onPress: () => { setSelected(item); setTranspose(0); } },
+                { label: 'Preview Notes', icon: 'musical-notes', onPress: () => { setSelected(item); setTranspose(0); } },
+                ...(best ? [{ label: `Best: ${best.accuracy}%`, icon: 'trophy' as const, onPress: () => {} }] : []),
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.exerciseCard}
+                onPress={() => { setSelected(item); setTranspose(0); }}
+                activeOpacity={0.7}
+                {...A11Y.exerciseCard(item.name, item.level, !!best)}
+              >
+                <View style={[styles.levelDot, { backgroundColor: LEVEL_COLORS[item.level] }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.exerciseName}>{item.name}</Text>
+                  <Text style={styles.exerciseDesc}>{item.description} · {item.notes.length} notes · {item.bpm} BPM</Text>
+                </View>
+                {best ? <Text style={[styles.bestMini, { color: best.accuracy >= 80 ? COLORS.success : COLORS.warning }]}>{best.accuracy}%</Text>
+                  : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
+              </TouchableOpacity>
+            </ContextMenu>
           );
         }}
       />

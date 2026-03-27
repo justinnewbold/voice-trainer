@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { usePitchDetection } from '../hooks/usePitchDetection';
+import { useKeepAwake } from '../hooks/useKeepAwake';
 import { detectKey, createChromaAccumulator, isNoteInKey, getScaleDegrees, KeyResult } from '../utils/keyDetection';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
