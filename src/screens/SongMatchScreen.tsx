@@ -15,6 +15,7 @@ import { saveSession, getBests, getDailyChallengeStatus, markDailyChallengeCompl
 import { createReplayBuilder, saveReplay, SessionReplay } from '../utils/sessionReplay';
 import { useHaptics } from '../hooks/useHaptics';
 import { useKeepAwake } from '../hooks/useKeepAwake';
+import { maybePromptReview } from '../hooks/useStoreReview';
 import ContextMenu from '../components/ContextMenu';
 import { A11Y } from '../hooks/useAccessibility';
 
@@ -204,6 +205,7 @@ export default function SongMatchScreen() {
         id: Date.now().toString(), date: Date.now(), exerciseId: selected.id, exerciseName: selected.name,
         type: 'song', duration, accuracy: acc, score, combo: finalCombo ?? combo,
       });
+      await maybePromptReview(acc);
 
       const challenge = getDailyChallenge();
       if (challenge.type === 'song' && challenge.exerciseId === selected.id && acc >= challenge.target) {

@@ -16,6 +16,7 @@ import { noteToFrequency, frequencyToNoteInfo, isNoteHit, getNoteMatchScore } fr
 import { saveSession, getBests } from '../utils/storage';
 import { createReplayBuilder, saveReplay, SessionReplay } from '../utils/sessionReplay';
 import { useKeepAwake } from '../hooks/useKeepAwake';
+import { maybePromptReview } from '../hooks/useStoreReview';
 import ContextMenu from '../components/ContextMenu';
 import { A11Y } from '../hooks/useAccessibility';
 
@@ -144,6 +145,7 @@ export default function ScalesScreen() {
     }
     if (selected) {
       await saveSession({ id: Date.now().toString(), date: Date.now(), exerciseId: selected.id, exerciseName: selected.name + (transpose !== 0 ? ` (${transpose > 0 ? '+' : ''}${transpose})` : ''), type: 'scale', duration, accuracy: acc, notesHit: results.length, totalNotes: selected.notes.length });
+      await maybePromptReview(acc);
       getBests().then(setBests);
     }
   };

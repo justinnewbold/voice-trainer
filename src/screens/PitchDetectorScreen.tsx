@@ -7,6 +7,7 @@ import PitchMeter from '../components/PitchMeter';
 import WaveformDisplay from '../components/WaveformDisplay';
 import { usePitchDetection } from '../hooks/usePitchDetection';
 import { useKeepAwake } from '../hooks/useKeepAwake';
+import { maybePromptReview } from '../hooks/useStoreReview';
 import { A11Y } from '../hooks/useAccessibility';
 import { saveSession } from '../utils/storage';
 
@@ -39,6 +40,7 @@ export default function PitchDetectorScreen() {
           id: Date.now().toString(), date: Date.now(), exerciseId: 'freeform', exerciseName: 'Free Practice',
           type: 'freeform', duration, accuracy: avgAcc, notesHit: onPitchCount, totalNotes: totalCount,
         });
+        await maybePromptReview(avgAcc);
       }
       await stopListening();
       setSessionAccuracies([]); setSessionStart(null); setOnPitchCount(0); setTotalCount(0);
