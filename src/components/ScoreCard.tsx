@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Share, Platform, ScrollView } from 'react-native';
 import Svg, { Rect, Circle, Text as SvgText, Path, Defs, LinearGradient as SvgGradient, Stop, G } from 'react-native-svg';
 import { COLORS, BORDER_RADIUS } from '../constants/theme';
@@ -134,6 +134,7 @@ export function ScoreCardSVG({ replay, progress, exerciseName, accuracy: accProp
 
 export default function ScoreCard({ replay, progress, exerciseName, accuracy, score, onClose }: Props) {
   const [sharing, setSharing] = useState(false);
+  const cardRef = useRef<View>(null);
 
   const handleShare = async () => {
     setSharing(true);
@@ -144,7 +145,18 @@ export default function ScoreCard({ replay, progress, exerciseName, accuracy, sc
       const text = `🎤 Voice Trainer Result\n\n${name}\nAccuracy: ${acc}% (Grade ${grade.letter} — ${grade.label})\nStreak: ${progress?.currentStreak ?? 0}🔥 days\n\nTrain your voice at voice-trainer.newbold.cloud`;
 
       if (Platform.OS !== 'web') {
-        await Share.share({ message: text, title: 'My Voice Trainer Score' });
+        // Try image capture, fall back to text
+        try {
+          const ViewShot = await import('react-native-view-shot');
+          if (cardRef.current) {
+            const uri = await ViewShot.captureRef(cardRef.current, { format: 'png', quality: 1, result: 'tmpfile' });
+            await Share.share({ url: uri, title: 'My Voice Trainer Score', message: text });
+          } else {
+            await Share.share({ message: text, title: 'My Voice Trainer Score' });
+          }
+        } catch {
+          await Share.share({ message: text, title: 'My Voice Trainer Score' });
+        }
       } else if (typeof navigator !== 'undefined' && navigator.share) {
         await navigator.share({ title: 'My Voice Trainer Score', text });
       } else {
@@ -167,10 +179,10 @@ export default function ScoreCard({ replay, progress, exerciseName, accuracy, sc
       </View>
 
       <ScrollView contentContainerStyle={styles.cardWrap}>
-        <View style={styles.svgWrap}>
+        <View ref={cardRef} collapsable={false} style={styles.svgWrap}>
           <ScoreCardSVG replay={replay} progress={progress} exerciseName={exerciseName} accuracy={accuracy} score={score} />
         </View>
-        <Text style={styles.hint}>📸 Screenshot to save or share</Text>
+        <Text style={styles.hint}>📸 Share as image or screenshot to save</Text>
         <TouchableOpacity style={styles.shareBtn} onPress={handleShare} disabled={sharing}>
           <Text style={styles.shareBtnText}>{sharing ? 'Sharing…' : '↗ Share Score'}</Text>
         </TouchableOpacity>

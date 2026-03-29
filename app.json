@@ -60,7 +60,8 @@
           "color": "#7C3AED",
           "sounds": []
         }
-      ]
+      ],
+      "expo-splash-screen"
     ],
     "scheme": "voicetrainer",
     "extra": {
