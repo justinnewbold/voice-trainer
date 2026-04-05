@@ -1,14 +1,13 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl, Modal, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
-import { loadProgress, clearProgress, UserProgress, levelInfo, getGems, getAchievements, ACHIEVEMENT_DEFS, getCalendarData, getBests, SessionResult, deleteSession, loadRangeHistory, loadVocalRange, RangeSnapshot } from '../utils/storage';
+import { loadProgress, clearProgress, UserProgress, levelInfo, getGems, getAchievements, ACHIEVEMENT_DEFS, getCalendarData, getBests, SessionResult, deleteSession, loadRangeHistory, RangeSnapshot } from '../utils/storage';
 import VocalRangeHistory from '../components/VocalRangeHistory';
 import SwipeableRow from '../components/SwipeableRow';
 import { A11Y } from '../hooks/useAccessibility';
-import { useWindowDimensions } from 'react-native';
 
 export default function ProgressScreen() {
   const [progress, setProgress] = useState<UserProgress | null>(null);
