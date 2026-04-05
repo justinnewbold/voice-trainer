@@ -18,6 +18,8 @@ import { createReplayBuilder, saveReplay, SessionReplay } from '../utils/session
 import { useKeepAwake } from '../hooks/useKeepAwake';
 import { maybePromptReview } from '../hooks/useStoreReview';
 import ContextMenu from '../components/ContextMenu';
+import MetronomeBadge from '../components/MetronomeBadge';
+import { useMetronome } from '../hooks/useMetronome';
 import { A11Y } from '../hooks/useAccessibility';
 
 type Level = 'all' | 'beginner' | 'intermediate' | 'advanced';
@@ -40,6 +42,7 @@ export default function ScalesScreen() {
   const holdStartRef = useRef<number>(0); // when we first detected the current note correctly
 
   const { noteInfo, pitchHint, isListening, volume, color, startListening, stopListening } = usePitchDetection();
+  const metronome = useMetronome(selected?.bpm || 80);
   const { playNote, playing: tonePlaying } = useReferenceTone();
   const { playNoteHit, playFanfare, playComplete, playCountdownBeep } = useSoundEffects();
   const { hitNote, hitCombo, completeFanfare, countdownTick } = useHaptics();
@@ -112,6 +115,8 @@ export default function ScalesScreen() {
     noteStartRef.current = Date.now();
     holdStartRef.current = 0;
     await startListening();
+    metronome.setBpm(selected!.bpm);
+    metronome.start();
     startRef.current = new Date();
     setIsRunning(true);
     setNoteIdx(0);
@@ -120,6 +125,7 @@ export default function ScalesScreen() {
 
   const finishExercise = async () => {
     setIsRunning(false);
+    metronome.stop();
     await stopListening();
     const duration = startRef.current ? Math.floor((Date.now() - startRef.current.getTime()) / 1000) : 0;
     const acc = results.length > 0 ? Math.round(results.reduce((a, b) => a + b, 0) / results.length) : 0;
@@ -201,6 +207,15 @@ export default function ScalesScreen() {
                 <View style={[styles.progressFill, { width: `${(noteIdx / selected.notes.length) * 100}%` }]} />
               </View>
               <Text style={styles.progressText}>{noteIdx} / {selected.notes.length} notes</Text>
+              <MetronomeBadge
+                isPlaying={metronome.isPlaying}
+                bpm={metronome.bpm}
+                currentBeat={metronome.currentBeat}
+                beatsPerMeasure={metronome.beatsPerMeasure}
+                onToggle={metronome.toggle}
+                onSetBpm={metronome.setBpm}
+                onSetBeats={metronome.setBeatsPerMeasure}
+              />
               <TouchableOpacity style={styles.stopBtn} onPress={finishExercise}>
                 <Ionicons name="stop" size={20} color="#fff" />
                 <Text style={styles.stopText}>End Exercise</Text>
@@ -276,6 +291,17 @@ export default function ScalesScreen() {
             ))}
           </View>
           <Text style={styles.tapHint}>Tap any note above to hear it</Text>
+          <View style={styles.metronomePreview}>
+            <MetronomeBadge
+              isPlaying={metronome.isPlaying}
+              bpm={metronome.bpm}
+              currentBeat={metronome.currentBeat}
+              beatsPerMeasure={metronome.beatsPerMeasure}
+              onToggle={metronome.toggle}
+              onSetBpm={metronome.setBpm}
+              onSetBeats={metronome.setBeatsPerMeasure}
+            />
+          </View>
           <TouchableOpacity style={styles.startBtn} onPress={startExercise}>
             <Ionicons name="play" size={20} color="#fff" />
             <Text style={styles.startText}>Start Exercise</Text>
@@ -376,6 +402,7 @@ const styles = StyleSheet.create({
   previewNote: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: BORDER_RADIUS.sm, borderWidth: 1 },
   previewNoteText: { fontSize: FONTS.sizes.sm, fontWeight: FONTS.weights.bold },
   tapHint: { fontSize: 11, color: COLORS.textMuted, marginBottom: SPACING.xl, textAlign: 'center' },
+  metronomePreview: { alignItems: 'center', marginBottom: 14 },
   startBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, paddingVertical: 16, borderRadius: BORDER_RADIUS.lg },
   startText: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.bold, color: '#fff' },
   exerciseContent: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.lg },

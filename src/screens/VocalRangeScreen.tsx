@@ -1,21 +1,29 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { usePitchDetection } from '../hooks/usePitchDetection';
 import { freqToNoteName, classifyVoiceType, ALL_NOTES } from '../utils/pitchUtils';
-import { saveVocalRange } from '../utils/storage';
+import { saveVocalRange, saveRangeSnapshot, loadRangeHistory, RangeSnapshot } from '../utils/storage';
+import VocalRangeHistory from '../components/VocalRangeHistory';
 
 type Step = 'intro' | 'low' | 'high' | 'result';
 
 export default function VocalRangeScreen({ onComplete }: { onComplete?: () => void }) {
   const [step, setStep] = useState<Step>('intro');
+  const [rangeHistory, setRangeHistory] = useState<RangeSnapshot[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const { width: screenWidth } = useWindowDimensions();
   const [lowNote, setLowNote] = useState<{ name: string; freq: number } | null>(null);
   const [highNote, setHighNote] = useState<{ name: string; freq: number } | null>(null);
   const [countdown, setCountdown] = useState(0);
   const [detectedNote, setDetectedNote] = useState<{ name: string; freq: number } | null>(null);
   const { frequency, isListening, volume, startListening, stopListening } = usePitchDetection();
+
+  useEffect(() => {
+    loadRangeHistory().then(setRangeHistory);
+  }, []);
 
   useEffect(() => {
     if (isListening && frequency > 0) {
@@ -51,10 +59,12 @@ export default function VocalRangeScreen({ onComplete }: { onComplete?: () => vo
       const vt = classifyVoiceType(lowNote.name, highNote.name);
       const lowIdx = ALL_NOTES.findIndex(n => n.name === lowNote.name);
       const highIdx = ALL_NOTES.findIndex(n => n.name === highNote.name);
-      saveVocalRange({
+      const snapshot = {
         lowNote: lowNote.name, highNote: highNote.name,
         voiceType: vt?.id || 'unknown', semitones: highIdx - lowIdx, testedAt: Date.now(),
-      });
+      };
+      saveVocalRange(snapshot);
+      saveRangeSnapshot(snapshot).then(() => loadRangeHistory().then(setRangeHistory));
     }
   }, [step, lowNote, highNote]);
 
@@ -70,6 +80,11 @@ export default function VocalRangeScreen({ onComplete }: { onComplete?: () => vo
         {onComplete && (
           <TouchableOpacity onPress={onComplete} style={{ marginTop: 12 }}>
             <Text style={styles.skipText}>Skip for now</Text>
+          </TouchableOpacity>
+        )}
+        {rangeHistory.length > 0 && (
+          <TouchableOpacity onPress={() => setShowHistory(true)} style={styles.historyBtn}>
+            <Text style={styles.historyBtnText}>📊 View Range History ({rangeHistory.length} tests)</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -129,6 +144,23 @@ export default function VocalRangeScreen({ onComplete }: { onComplete?: () => vo
     );
   }
 
+  // History view
+  if (showHistory) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.historyHeader}>
+          <TouchableOpacity onPress={() => setShowHistory(false)} style={styles.backBtn}>
+            <Text style={styles.backBtnText}>← Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.heading}>Range History</Text>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+          <VocalRangeHistory history={rangeHistory} width={screenWidth - 32} />
+        </ScrollView>
+      </View>
+    );
+  }
+
   // Result
   const vt = lowNote && highNote ? classifyVoiceType(lowNote.name, highNote.name) : null;
   const lowIdx = ALL_NOTES.findIndex(n => n.name === lowNote?.name);
@@ -136,7 +168,7 @@ export default function VocalRangeScreen({ onComplete }: { onComplete?: () => vo
   const semitones = highIdx - lowIdx;
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1 }}>
       <View style={styles.centered}>
         <Text style={{ fontSize: 64 }}>🎉</Text>
         <Text style={styles.heading}>Your Vocal Range</Text>
@@ -166,6 +198,12 @@ export default function VocalRangeScreen({ onComplete }: { onComplete?: () => vo
           </View>
         )}
 
+        {rangeHistory.length > 1 && (
+          <TouchableOpacity onPress={() => setShowHistory(true)} style={styles.historyBtn}>
+            <Text style={styles.historyBtnText}>📊 View Range History ({rangeHistory.length} tests)</Text>
+          </TouchableOpacity>
+        )}
+
         <View style={styles.btnRow}>
           <TouchableOpacity style={styles.secondaryBtn} onPress={() => { setStep('intro'); setLowNote(null); setHighNote(null); }}>
             <Text style={styles.secondaryBtnText}>Retest</Text>
@@ -175,7 +213,7 @@ export default function VocalRangeScreen({ onComplete }: { onComplete?: () => vo
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -209,4 +247,9 @@ const styles = StyleSheet.create({
   voiceTypeLabel: { fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' },
   voiceTypeName: { fontSize: 22, fontWeight: '900', marginTop: 4 },
   voiceTypeRange: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
+  historyBtn: { backgroundColor: '#13132A', borderRadius: BORDER_RADIUS.lg, paddingHorizontal: 20, paddingVertical: 12, borderWidth: 1, borderColor: '#2A2A50', marginTop: 8 },
+  historyBtnText: { color: COLORS.primaryLight, fontSize: 14, fontWeight: '600' },
+  historyHeader: { paddingTop: 60, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md },
+  backBtn: { marginBottom: 8 },
+  backBtnText: { color: COLORS.primaryLight, fontSize: 14, fontWeight: '600' },
 });

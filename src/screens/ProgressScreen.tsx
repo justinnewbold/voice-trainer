@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl, Modal, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
-import { loadProgress, clearProgress, UserProgress, levelInfo, getGems, getAchievements, ACHIEVEMENT_DEFS, getCalendarData, getBests, SessionResult, deleteSession } from '../utils/storage';
+import { loadProgress, clearProgress, UserProgress, levelInfo, getGems, getAchievements, ACHIEVEMENT_DEFS, getCalendarData, getBests, SessionResult, deleteSession, loadRangeHistory, RangeSnapshot } from '../utils/storage';
+import VocalRangeHistory from '../components/VocalRangeHistory';
 import SwipeableRow from '../components/SwipeableRow';
 import { A11Y } from '../hooks/useAccessibility';
 
@@ -15,12 +16,14 @@ export default function ProgressScreen() {
   const [calDays, setCalDays] = useState<any[]>([]);
   const [bests, setBests] = useState<Record<string, any>>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [rangeHistory, setRangeHistory] = useState<RangeSnapshot[]>([]);
   const [selectedSession, setSelectedSession] = useState<SessionResult | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'achievements'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'achievements' | 'range'>('overview');
+  const { width: screenWidth } = useWindowDimensions();
 
   const fetch = useCallback(async () => {
-    const [p, g, a, c, b] = await Promise.all([loadProgress(), getGems(), getAchievements(), getCalendarData(8), getBests()]);
-    setProgress(p); setGems(g); setEarned(a.map(x => x.id)); setCalDays(c); setBests(b);
+    const [p, g, a, c, b, rh] = await Promise.all([loadProgress(), getGems(), getAchievements(), getCalendarData(8), getBests(), loadRangeHistory()]);
+    setProgress(p); setGems(g); setEarned(a.map(x => x.id)); setCalDays(c); setBests(b); setRangeHistory(rh);
   }, []);
 
   useFocusEffect(useCallback(() => { fetch(); }, [fetch]));
@@ -82,9 +85,9 @@ export default function ProgressScreen() {
       </LinearGradient>
 
       <View style={styles.tabRow}>
-        {(['overview', 'sessions', 'achievements'] as const).map(t => (
+        {(['overview', 'sessions', 'achievements', 'range'] as const).map(t => (
           <TouchableOpacity key={t} style={[styles.tab, activeTab === t && styles.tabActive]} onPress={() => setActiveTab(t)}>
-            <Text style={[styles.tabText, activeTab === t && styles.tabTextActive]}>{t.charAt(0).toUpperCase() + t.slice(1)}</Text>
+            <Text style={[styles.tabText, activeTab === t && styles.tabTextActive]}>{t === 'range' ? 'Range' : t.charAt(0).toUpperCase() + t.slice(1)}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -255,6 +258,15 @@ export default function ProgressScreen() {
         </View>
       )}
 
+      {activeTab === 'range' && (
+        <View style={styles.sectionFlat}>
+          <Text style={styles.sectionTitle}>Vocal Range Over Time</Text>
+          <View style={styles.rangeContainer}>
+            <VocalRangeHistory history={rangeHistory} width={screenWidth - 64} />
+          </View>
+        </View>
+      )}
+
       <View style={{ height: 40 }} />
 
       <Modal visible={!!selectedSession} transparent animationType="slide" onRequestClose={() => setSelectedSession(null)}>
@@ -367,5 +379,6 @@ const styles = StyleSheet.create({
   modalStat: { alignItems: 'center' },
   modalStatVal: { fontSize: 22, fontWeight: '800', color: COLORS.text },
   modalStatLabel: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  rangeContainer: { backgroundColor: '#13132A', borderRadius: BORDER_RADIUS.lg, padding: 16, borderWidth: 1, borderColor: '#2A2A50' },
   modalDate: { fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginBottom: 12 },
 });
