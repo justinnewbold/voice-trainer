@@ -10,9 +10,12 @@ import { useKeepAwake } from '../hooks/useKeepAwake';
 import { maybePromptReview } from '../hooks/useStoreReview';
 import { A11Y } from '../hooks/useAccessibility';
 import { saveSession } from '../utils/storage';
+import MetronomeBadge from '../components/MetronomeBadge';
+import { useMetronome } from '../hooks/useMetronome';
 
 export default function PitchDetectorScreen() {
   const { frequency, noteInfo, pitchHint, color, isListening, volume, startListening, stopListening, error } = usePitchDetection();
+  const metronome = useMetronome(80);
   const [sessionAccuracies, setSessionAccuracies] = useState<number[]>([]);
   const [sessionStart, setSessionStart] = useState<Date | null>(null);
   const [onPitchCount, setOnPitchCount] = useState(0);
@@ -71,6 +74,17 @@ export default function PitchDetectorScreen() {
         <View {...A11Y.volumeLevel(volume)}>
           <WaveformDisplay volume={volume} color={color} isListening={isListening} />
         </View>
+
+        {/* Metronome */}
+        <MetronomeBadge
+          isPlaying={metronome.isPlaying}
+          bpm={metronome.bpm}
+          currentBeat={metronome.currentBeat}
+          beatsPerMeasure={metronome.beatsPerMeasure}
+          onToggle={metronome.toggle}
+          onSetBpm={metronome.setBpm}
+          onSetBeats={metronome.setBeatsPerMeasure}
+        />
 
         {/* Session stats */}
         {isListening && totalCount > 0 && (
