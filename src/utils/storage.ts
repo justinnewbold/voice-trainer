@@ -60,6 +60,7 @@ const UNLOCKS_KEY = 'vt_unlocks_v1';
 const SETTINGS_KEY = 'vt_settings_v1';
 const DAILY_CHALLENGE_KEY = 'vt_daily_challenge_v1';
 const COACH_HISTORY_KEY = 'vt_coach_history_v1';
+const RANGE_HISTORY_KEY = 'vt_range_history_v1';
 
 export const defaultProgress: UserProgress = {
   totalSessions: 0, totalMinutes: 0, currentStreak: 0, longestStreak: 0,
@@ -155,6 +156,35 @@ export async function loadVocalRange(): Promise<VocalRange | null> {
 
 export async function saveVocalRange(range: VocalRange): Promise<void> {
   await setItem(RANGE_KEY, JSON.stringify(range));
+}
+
+
+
+// ─── Vocal Range History ────────────────────────────────────────────────────
+export interface RangeSnapshot {
+  lowNote: string;
+  highNote: string;
+  voiceType: string;
+  semitones: number;
+  testedAt: number;
+}
+
+export async function loadRangeHistory(): Promise<RangeSnapshot[]> {
+  const raw = await getItem(RANGE_HISTORY_KEY);
+  if (raw) { try { return JSON.parse(raw); } catch {} }
+  return [];
+}
+
+export async function saveRangeSnapshot(snapshot: RangeSnapshot): Promise<void> {
+  const history = await loadRangeHistory();
+  // Add new snapshot, keep last 50
+  history.push(snapshot);
+  const trimmed = history.slice(-50);
+  await setItem(RANGE_HISTORY_KEY, JSON.stringify(trimmed));
+}
+
+export async function clearRangeHistory(): Promise<void> {
+  await setItem(RANGE_HISTORY_KEY, '[]');
 }
 
 // ─── Onboarding ─────────────────────────────────────────────────────────────
