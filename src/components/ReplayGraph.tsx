@@ -4,6 +4,7 @@ import Svg, { Path, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { COLORS, BORDER_RADIUS, SPACING } from '../constants/theme';
 import { SessionReplay, analyzeReplay } from '../utils/sessionReplay';
 import ScoreCard from './ScoreCard';
+import RecordingPlayback from './RecordingPlayback';
 
 interface Props {
   replay: SessionReplay;
@@ -87,7 +88,7 @@ function PitchGraph({ replay, width }: { replay: SessionReplay; width: number })
 }
 
 export default function ReplayGraph({ replay, onClose, onPracticeAgain, progress }: Props) {
-  const [tab, setTab] = useState<'graph' | 'notes' | 'analysis' | 'share'>('graph');
+  const [tab, setTab] = useState<'graph' | 'playback' | 'notes' | 'analysis' | 'share'>('graph');
   const { width: screenWidth } = useWindowDimensions();
   const graphWidth = screenWidth - 64; // 16px padding each side + 16px card padding each side
   const analysis = analyzeReplay(replay);
@@ -129,10 +130,10 @@ export default function ReplayGraph({ replay, onClose, onPracticeAgain, progress
 
       {/* Tab bar */}
       <View style={styles.tabRow}>
-        {(['graph', 'notes', 'analysis', 'share'] as const).map(t => (
+        {(['graph', 'playback', 'notes', 'analysis', 'share'] as const).map(t => (
           <TouchableOpacity key={t} style={[styles.tab, tab === t && styles.tabActive]} onPress={() => setTab(t)}>
             <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
-              {t === 'graph' ? '📈 Graph' : t === 'notes' ? '🎵 Notes' : t === 'analysis' ? '💡 Analysis' : '📤 Share'}
+              {t === 'graph' ? '📈 Graph' : t === 'playback' ? '▶️ Replay' : t === 'notes' ? '🎵 Notes' : t === 'analysis' ? '💡 Analysis' : '📤 Share'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -143,6 +144,15 @@ export default function ReplayGraph({ replay, onClose, onPracticeAgain, progress
           <Text style={styles.sectionTitle}>Pitch Over Time</Text>
           <Text style={styles.sectionSub}>Cents sharp/flat per moment</Text>
           <PitchGraph replay={replay} width={graphWidth} />
+        </View>
+      )}
+
+
+      {tab === 'playback' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recording Playback</Text>
+          <Text style={styles.sectionSub}>Scrub through your performance with pitch overlay</Text>
+          <RecordingPlayback replay={replay} width={graphWidth} />
         </View>
       )}
 
