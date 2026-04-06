@@ -76,7 +76,7 @@ function MoreDrawer({ visible, onClose }: { visible: boolean; onClose: () => voi
 function MoreTabButton({ onPress }: { onPress: () => void }) {
   return (
     <TouchableOpacity style={styles.moreTabBtn} onPress={onPress} activeOpacity={0.7} {...A11Y.moreTab}>
-      <Ionicons name="ellipsis-horizontal" size={24} color={COLORS.textMuted} />
+      <Ionicons name="ellipsis-horizontal" size={18} color={COLORS.textSecondary} />
       <Text style={styles.moreTabLabel}>More</Text>
     </TouchableOpacity>
   );
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   drawerItemText: { flex: 1 },
   drawerItemLabel: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   drawerItemDesc: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  moreTabBtnWrapper: { position: 'absolute', bottom: 0, right: 0, width: '20%', height: TAB_HEIGHT, alignItems: 'center', justifyContent: 'center' },
-  moreTabBtn: { alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 4 },
-  moreTabLabel: { fontSize: 11, fontWeight: '600', color: COLORS.textMuted },
+  moreTabBtnWrapper: { position: 'absolute', top: Platform.OS === 'ios' ? 54 : 16, right: 16, zIndex: 100 },
+  moreTabBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(30, 30, 58, 0.7)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, gap: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: '#2A2A5066', ...(Platform.OS === 'web' ? { backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' } as any : {}) },
+  moreTabLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
 });
