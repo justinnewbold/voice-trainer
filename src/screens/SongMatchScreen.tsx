@@ -403,11 +403,17 @@ export default function SongMatchScreen() {
             <View style={styles.noteGridSection}>
               <Text style={styles.noteGridLabel}>Tap any note to hear it</Text>
               <View style={styles.noteGrid}>
-                {transposedNotes(selected).filter(n => n.midi !== 0).map((n, i) => {
+                {transposedNotes(selected)
+                  .filter(n => n.midi !== 0)
+                  .reduce<typeof selected.notes>((unique, n) => {
+                    if (!unique.find(u => u.midi === n.midi)) unique.push(n);
+                    return unique;
+                  }, [])
+                  .map((n) => {
                   const info = frequencyToNoteInfo(noteToFrequency(n.midi));
                   return (
                     <TouchableOpacity
-                      key={i}
+                      key={`note-${n.midi}`}
                       style={styles.noteGridItem}
                       onPress={() => playTone(noteToFrequency(n.midi), 500, 0.3)}
                       activeOpacity={0.7}
