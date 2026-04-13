@@ -75,9 +75,9 @@ export default function ScalesScreen() {
     if (noteMatches) {
       // Start hold timer on first matching frame
       if (holdStartRef.current === 0) holdStartRef.current = Date.now();
-      // Require 120ms hold to count as a real hit (eliminates transient glitches)
+      // Require 1 second hold to count as a real hit (ensures proper note sustain)
       const holdDuration = Date.now() - holdStartRef.current;
-      if (holdDuration < 120) return; // not yet
+      if (holdDuration < 1000) return; // not yet
     } else {
       holdStartRef.current = 0; // reset hold if note drifts away
       return;
@@ -405,10 +405,10 @@ const styles = StyleSheet.create({
   metronomePreview: { alignItems: 'center', marginBottom: 14 },
   startBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, paddingVertical: 16, borderRadius: BORDER_RADIUS.lg },
   startText: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.bold, color: '#fff' },
-  exerciseContent: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.lg },
-  targetSection: { alignItems: 'center', gap: 4 },
+  exerciseContent: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.lg, paddingTop: SPACING.xl },
+  targetSection: { alignItems: 'center', gap: 8, marginTop: SPACING.lg, marginBottom: SPACING.md },
   targetLabel: { fontSize: FONTS.sizes.sm, color: COLORS.textMuted },
-  targetNoteRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  targetNoteRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: SPACING.md },
   targetNoteText: { fontSize: 52, fontWeight: FONTS.weights.black, color: COLORS.primaryLight },
   targetFreq: { fontSize: 12, color: COLORS.textMuted },
   listenBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: BORDER_RADIUS.full, backgroundColor: '#1E1E3A', borderWidth: 1, borderColor: '#2A2A50' },
