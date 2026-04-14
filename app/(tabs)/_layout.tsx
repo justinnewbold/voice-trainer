@@ -15,6 +15,7 @@ const MORE_ITEMS = [
   { label: 'AI Coach', icon: 'chatbubble-ellipses' as const, route: '/(tabs)/coach', desc: 'Personalized coaching & plans', color: '#a78bfa' },
   { label: 'Progress', icon: 'bar-chart' as const, route: '/(tabs)/progress', desc: 'Stats, achievements & history', color: '#34d399' },
   { label: 'Skill Tree', icon: 'git-network' as const, route: '/(tabs)/skilltree', desc: 'Unlock skills & track mastery', color: '#7c3aed' },
+  { label: "Today's Plan", icon: 'calendar' as const, route: '/(tabs)/dailyplan', desc: 'AI-generated daily practice', color: '#06b6d4' },
   { label: 'Settings', icon: 'settings' as const, route: '/(tabs)/settings', desc: 'Preferences & notifications', color: '#94a3b8' },
 ];
 
@@ -139,6 +140,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="settings" options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
         <Tabs.Screen name="more-placeholder" options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
         <Tabs.Screen name="skilltree" options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+        <Tabs.Screen name="dailyplan" options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       </Tabs>
 
       <View style={styles.moreTabBtnWrapper} pointerEvents="box-none">
