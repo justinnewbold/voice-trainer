@@ -7,6 +7,7 @@ import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { loadProgress, UserProgress, levelInfo, getGems, getDailyProgress, getDailyChallengeStatus, markDailyChallengeComplete, loadSettings } from '../utils/storage';
 import { getDailyChallenge, EXERCISES, SONG_MELODIES } from '../utils/scales';
 import { clearBadge } from '../hooks/useNotifications';
+import DailyPlanCard from '../components/DailyPlanCard';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -104,6 +105,12 @@ export default function HomeScreen() {
           ))}
         </View>
       </LinearGradient>
+
+      {/* Daily AI Plan */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>✨ Today's Plan</Text>
+        <DailyPlanCard />
+      </View>
 
       {/* Daily Goal */}
       <View style={styles.section}>
