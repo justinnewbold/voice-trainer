@@ -8,6 +8,9 @@ import { loadProgress, clearProgress, UserProgress, levelInfo, getGems, getAchie
 import VocalRangeHistory from '../components/VocalRangeHistory';
 import SwipeableRow from '../components/SwipeableRow';
 import { A11Y } from '../hooks/useAccessibility';
+import { ScreenErrorBoundary } from '../components/ErrorBoundary';
+import { SkeletonCard, SkeletonProgressBar, SkeletonBarChart, SkeletonAchievementRows } from '../components/Skeleton';
+import EmptyState, { EmptySessionHistory, EmptyAchievements, EmptyVocalRange } from '../components/EmptyState';
 
 export default function ProgressScreen() {
   const [progress, setProgress] = useState<UserProgress | null>(null);
@@ -19,11 +22,13 @@ export default function ProgressScreen() {
   const [rangeHistory, setRangeHistory] = useState<RangeSnapshot[]>([]);
   const [selectedSession, setSelectedSession] = useState<SessionResult | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'achievements' | 'range'>('overview');
+  const [loading, setLoading] = useState(true);
   const { width: screenWidth } = useWindowDimensions();
 
   const fetch = useCallback(async () => {
     const [p, g, a, c, b, rh] = await Promise.all([loadProgress(), getGems(), getAchievements(), getCalendarData(8), getBests(), loadRangeHistory()]);
     setProgress(p); setGems(g); setEarned(a.map(x => x.id)); setCalDays(c); setBests(b); setRangeHistory(rh);
+    setLoading(false);
   }, []);
 
   useFocusEffect(useCallback(() => { fetch(); }, [fetch]));
@@ -77,7 +82,27 @@ export default function ProgressScreen() {
 
   const nextProgress = getNextAchievementProgress();
 
+  if (loading) {
+    return (
+      <ScreenErrorBoundary>
+        <View style={{ flex: 1, backgroundColor: COLORS.background, padding: 16, paddingTop: 56 }}>
+          <SkeletonCard lines={1} />
+          <View style={{ marginTop: 12 }}>
+            <SkeletonProgressBar />
+          </View>
+          <View style={{ marginTop: 12 }}>
+            <SkeletonBarChart />
+          </View>
+          <View style={{ marginTop: 12 }}>
+            <SkeletonAchievementRows count={4} />
+          </View>
+        </View>
+      </ScreenErrorBoundary>
+    );
+  }
+
   return (
+    <ScreenErrorBoundary>
     <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
       <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.header}>
         <Text style={styles.title}>📊 Progress</Text>
@@ -166,7 +191,7 @@ export default function ProgressScreen() {
         <View style={styles.sectionFlat}>
           <Text style={styles.sectionTitle}>{progress?.sessions?.length || 0} Total Sessions</Text>
           {(!progress?.sessions || progress.sessions.length === 0) && (
-            <Text style={styles.emptyText}>No sessions yet. Start practicing!</Text>
+            <EmptySessionHistory />
           )}
           {progress?.sessions?.map(s => (
             <SwipeableRow

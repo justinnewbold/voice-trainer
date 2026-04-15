@@ -7,6 +7,9 @@ import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { loadProgress, UserProgress, levelInfo, getGems, getDailyProgress, getDailyChallengeStatus, markDailyChallengeComplete, loadSettings } from '../utils/storage';
 import { getDailyChallenge, EXERCISES, SONG_MELODIES } from '../utils/scales';
 import { clearBadge } from '../hooks/useNotifications';
+import { ScreenErrorBoundary } from '../components/ErrorBoundary';
+import { SkeletonHomeScreen, SkeletonCard, SkeletonChallengeCard, SkeletonQuickGrid } from '../components/Skeleton';
+import EmptyState from '../components/EmptyState';
 import DailyPlanCard from '../components/DailyPlanCard';
 
 export default function HomeScreen() {
@@ -18,12 +21,14 @@ export default function HomeScreen() {
   const [settings, setSettings] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     const [p, g, d, cs, s] = await Promise.all([
       loadProgress(), getGems(), getDailyProgress(), getDailyChallengeStatus(), loadSettings()
     ]);
     setProgress(p); setGems(g); setDaily(d); setChallengeStatus(cs); setSettings(s);
+    setLoading(false);
     if (!s.notificationsEnabled && p.totalSessions >= 2) setShowNotifPrompt(true);
   }, []);
 
@@ -63,7 +68,23 @@ export default function HomeScreen() {
     { label: 'Coach', icon: 'chatbubble-ellipses' as const, color: '#a78bfa', route: '/(tabs)/coach', desc: 'AI vocal coaching' },
   ];
 
+  if (loading) {
+    return (
+      <ScreenErrorBoundary>
+        <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+          <SkeletonHomeScreen />
+          <View style={{ margin: 16, gap: 12 }}>
+            <SkeletonCard lines={2} />
+            <SkeletonChallengeCard />
+            <SkeletonQuickGrid />
+          </View>
+        </View>
+      </ScreenErrorBoundary>
+    );
+  }
+
   return (
+    <ScreenErrorBoundary>
     <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
       <LinearGradient colors={['#1a0a2e', '#0A0A1A']} style={styles.header}>
         <View style={styles.headerTop}>
@@ -222,6 +243,7 @@ export default function HomeScreen() {
 
       <View style={{ height: 40 }} />
     </ScrollView>
+    </ScreenErrorBoundary>
   );
 }
 
