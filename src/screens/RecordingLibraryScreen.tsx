@@ -16,6 +16,9 @@ import {
 import { analyzeReplay } from '../utils/sessionReplay';
 import RecordingPlayback from '../components/RecordingPlayback';
 import WaveformSparkline from '../components/WaveformSparkline';
+import { ScreenErrorBoundary } from '../components/ErrorBoundary';
+import { SkeletonRecordingRows } from '../components/Skeleton';
+import { EmptyRecordings, EmptyFavoriteRecordings } from '../components/EmptyState';
 import Svg, { Polyline, Line, Circle, Text as SvgText, Rect } from 'react-native-svg';
 
 type FilterTab = 'all' | 'favorites' | 'scales' | 'songs';
@@ -426,11 +429,13 @@ export default function RecordingLibraryScreen() {
   const [filter, setFilter] = useState<FilterTab>('all');
   const [selected, setSelected] = useState<LibraryEntry | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const { width } = useWindowDimensions();
 
   const load = useCallback(async () => {
     const lib = await loadLibrary(20);
     setEntries(lib);
+    setLoading(false);
     // Build sparklines
     const sp: Record<string, number[]> = {};
     for (const e of lib) {
@@ -508,18 +513,9 @@ export default function RecordingLibraryScreen() {
         </View>
 
         {/* Empty state */}
-        {filtered.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🎙️</Text>
-            <Text style={styles.emptyTitle}>
-              {filter === 'favorites' ? 'No favorites yet' : 'No recordings yet'}
-            </Text>
-            <Text style={styles.emptyText}>
-              {filter === 'favorites'
-                ? 'Tap the heart on any recording to save it as a favorite.'
-                : 'Complete a Scales or Songs exercise to see your recordings here.'}
-            </Text>
-          </View>
+        {loading && <View style={{ padding: 16 }}><SkeletonRecordingRows count={5} /></View>}
+        {!loading && filtered.length === 0 && (
+          filter === 'favorites' ? <EmptyFavoriteRecordings /> : <EmptyRecordings />
         )}
 
         {/* Recording list */}
