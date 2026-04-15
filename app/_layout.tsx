@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Stack } from 'expo-router';
+import ErrorBoundary from '../src/components/ErrorBoundary';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, Text, Platform } from 'react-native';
 import { hasCompletedOnboarding, markOnboardingComplete } from '../src/utils/storage';
@@ -79,6 +80,7 @@ export default function RootLayout() {
   }
 
   return (
+    <ErrorBoundary>
     <View style={styles.container} onLayout={onLayoutReady}>
       <StatusBar style="light" />
       <Stack
@@ -90,6 +92,7 @@ export default function RootLayout() {
         }}
       />
     </View>
+    </ErrorBoundary>
   );
 }
 
