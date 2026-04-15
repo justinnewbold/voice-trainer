@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { COLORS, BORDER_RADIUS, SPACING } from '../constants/theme';
 import { loadProgress, UserProgress } from '../utils/storage';
+import { ScreenErrorBoundary } from '../components/ErrorBoundary';
+import { SkeletonSkillTier } from '../components/Skeleton';
 import {
   loadSkillProgress, resolveSkillNodes, checkAndAwardSkills,
   SkillNode, SkillProgress, SKILL_DEFS, TIER_LABELS, TIER_COLORS,
@@ -284,6 +286,7 @@ export default function SkillTreeScreen() {
   const tierNumbers = [1, 2, 3, 4, 5] as const;
 
   return (
+    <ScreenErrorBoundary>
     <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -334,6 +337,7 @@ export default function SkillTreeScreen() {
         skillProgress={skillProgress}
       />
     </View>
+    </ScreenErrorBoundary>
   );
 }
 
