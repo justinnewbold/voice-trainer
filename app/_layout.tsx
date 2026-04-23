@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Stack } from 'expo-router';
 import ErrorBoundary from '../src/components/ErrorBoundary';
+import { AuthProvider, useAuthContextSafe } from '../src/auth/AuthContext';
+import { fullSync } from '../src/auth/syncService';
+import AuthScreen from '../src/screens/AuthScreen';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, Text, Platform } from 'react-native';
 import { hasCompletedOnboarding, markOnboardingComplete } from '../src/utils/storage';
@@ -80,6 +83,7 @@ export default function RootLayout() {
   }
 
   return (
+    <AuthProvider>
     <ErrorBoundary>
     <View style={styles.container} onLayout={onLayoutReady}>
       <StatusBar style="light" />
@@ -93,6 +97,7 @@ export default function RootLayout() {
       />
     </View>
     </ErrorBoundary>
+    </AuthProvider>
   );
 }
 
