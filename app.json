@@ -73,7 +73,7 @@
         "projectId": "55813256-d513-4205-97f8-06949d203842"
       },
       "supabaseUrl": "https://dueulgzlooapdblwwaik.supabase.co",
-      "supabaseAnonKey": ""
+      "supabaseAnonKey": "EXPO_PUBLIC_SUPABASE_ANON_KEY"
     },
     "owner": "justinnewbold"
   }
