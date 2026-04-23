@@ -143,6 +143,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="skilltree" options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
         <Tabs.Screen name="dailyplan" options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
         <Tabs.Screen name="library" options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+        <Tabs.Screen name="auth" options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       </Tabs>
 
       <View style={styles.moreTabBtnWrapper} pointerEvents="box-none">
