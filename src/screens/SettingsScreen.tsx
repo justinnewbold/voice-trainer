@@ -4,6 +4,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
+import { useAuthContextSafe } from '../auth/AuthContext';
+import { isSupabaseConfigured } from '../auth/supabaseClient';
+import { fullSync } from '../auth/syncService';
+import { useRouter } from 'expo-router';
 import { loadSettings, saveSettings, clearProgress, loadVocalRange, loadProgress, AppSettings, defaultSettings } from '../utils/storage';
 import { useNotifications } from '../hooks/useNotifications';
 
@@ -28,6 +32,21 @@ const DAILY_GOALS = [
 ];
 
 export default function SettingsScreen() {
+  const auth = useAuthContextSafe();
+  const router = useRouter();
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+
+  const handleSync = async () => {
+    if (!auth?.user?.id) return;
+    setSyncing(true);
+    setSyncMsg('');
+    const result = await fullSync(auth.user.id);
+    setSyncMsg(result.success ? '✅ Synced!' : '❌ Sync failed');
+    setSyncing(false);
+    setTimeout(() => setSyncMsg(''), 3000);
+  };
+
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [vocalRange, setVocalRange] = useState<any>(null);
   const [saved, setSaved] = useState(false);
@@ -277,6 +296,56 @@ export default function SettingsScreen() {
         <Text style={styles.infoText}>Voice Trainer v2.1 — iOS Native Polish</Text>
         <Text style={styles.infoText}>Built with ♥ by Anthropic Claude</Text>
       </View>
+
+      {/* Account */}
+      <View style={sStyles.section}>
+        <Text style={sStyles.sectionTitle}>☁️ Account & Sync</Text>
+        {isSupabaseConfigured() && auth?.isAuthenticated ? (
+          <>
+            <View style={sStyles.accountRow}>
+              <View style={sStyles.accountAvatar}>
+                <Text style={sStyles.accountAvatarText}>
+                  {(auth.profile?.display_name || auth.user?.email || '?')[0].toUpperCase()}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={sStyles.accountName}>{auth.profile?.display_name || 'Your account'}</Text>
+                <Text style={sStyles.accountEmail}>{auth.user?.email}</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[sStyles.actionBtn, syncing && { opacity: 0.6 }]}
+              onPress={handleSync}
+              disabled={syncing}
+            >
+              <Ionicons name="cloud-upload-outline" size={16} color={COLORS.primaryLight} />
+              <Text style={sStyles.actionBtnText}>{syncing ? 'Syncing…' : 'Sync now'}</Text>
+              {syncMsg ? <Text style={{ fontSize: 12, color: syncMsg.startsWith('✅') ? COLORS.success : '#EF4444' }}>{syncMsg}</Text> : null}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[sStyles.actionBtn, { borderColor: '#EF444444' }]}
+              onPress={() => auth.signOut()}
+            >
+              <Ionicons name="log-out-outline" size={16} color="#EF4444" />
+              <Text style={[sStyles.actionBtnText, { color: '#EF4444' }]}>Sign out</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={sStyles.syncNote}>
+              Sign in to sync your progress, streaks, and skill tree across all your devices.
+            </Text>
+            <TouchableOpacity
+              style={sStyles.signInBtn}
+              onPress={() => router.push('/(tabs)/auth' as any)}
+            >
+              <Ionicons name="person-circle-outline" size={16} color="#fff" />
+              <Text style={sStyles.signInBtnText}>Sign in or create account</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+
       <View style={{ height: 40 }} />
     </ScrollView>
   );
@@ -324,4 +393,19 @@ const styles = StyleSheet.create({
   dangerNote: { fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
   infoSection: { alignItems: 'center', padding: 24, gap: 4 },
   infoText: { fontSize: 12, color: COLORS.textMuted },
+});
+
+const sStyles = StyleSheet.create({
+  section: { margin: 16, marginBottom: 0, backgroundColor: '#13132A', borderRadius: BORDER_RADIUS.lg, padding: 16, borderWidth: 1, borderColor: '#2A2A50' },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: COLORS.primaryLight, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+  accountRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  accountAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  accountAvatarText: { fontSize: 18, fontWeight: '700', color: '#fff' },
+  accountName: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  accountEmail: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#1E1E3A', borderRadius: BORDER_RADIUS.md, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#2A2A50' },
+  actionBtnText: { fontSize: 14, fontWeight: '600', color: COLORS.text, flex: 1 },
+  syncNote: { fontSize: 13, color: COLORS.textMuted, lineHeight: 18, marginBottom: 12 },
+  signInBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, padding: 13, borderRadius: BORDER_RADIUS.lg },
+  signInBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
 });
