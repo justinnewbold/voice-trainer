@@ -16,6 +16,10 @@ import { SkeletonHomeScreen, SkeletonCard, SkeletonChallengeCard, SkeletonQuickG
 import EmptyState from '../components/EmptyState';
 import DailyPlanCard from '../components/DailyPlanCard';
 import StreakRecoveryModal from '../components/StreakRecoveryModal';
+import WeeklyChallengeCard from '../components/WeeklyChallengeCard';
+import {
+  loadWeeklyChallenge, claimWeeklyReward, type WeeklyChallengeProgress,
+} from '../utils/weeklyChallenge';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -29,14 +33,15 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [streakProtection, setStreakProtection] = useState<StreakProtectionState | null>(null);
   const [recoverableBreak, setRecoverableBreak] = useState<RecoverableBreak | null>(null);
+  const [weeklyChallenge, setWeeklyChallenge] = useState<WeeklyChallengeProgress | null>(null);
 
   const fetchData = useCallback(async () => {
-    const [p, g, d, cs, s, sp, rb] = await Promise.all([
+    const [p, g, d, cs, s, sp, rb, wc] = await Promise.all([
       loadProgress(), getGems(), getDailyProgress(), getDailyChallengeStatus(), loadSettings(),
-      loadStreakProtection(), getRecoverableBreak(),
+      loadStreakProtection(), getRecoverableBreak(), loadWeeklyChallenge(),
     ]);
     setProgress(p); setGems(g); setDaily(d); setChallengeStatus(cs); setSettings(s);
-    setStreakProtection(sp); setRecoverableBreak(rb);
+    setStreakProtection(sp); setRecoverableBreak(rb); setWeeklyChallenge(wc);
     setLoading(false);
     if (!s.notificationsEnabled && p.totalSessions >= 2) setShowNotifPrompt(true);
   }, []);
@@ -89,6 +94,17 @@ export default function HomeScreen() {
     await dismissRecoverableBreak(recoverableBreak.eventId);
     setRecoverableBreak(null);
   }, [recoverableBreak]);
+
+  const handleClaimWeekly = useCallback(async () => {
+    const result = await claimWeeklyReward();
+    if (!result.claimed) return;
+
+    const { addGems, addXP } = await import('../utils/storage');
+    await addGems(result.gems);
+    await addXP(result.xp);
+
+    await fetchData();
+  }, [fetchData]);
 
   const quickActions = [
     { label: 'Warmup', icon: 'flame' as const, color: '#f97316', route: '/(tabs)/warmup', desc: 'Prep your voice' },
@@ -217,6 +233,17 @@ export default function HomeScreen() {
         )}
         <Text style={styles.challengeStreak}>🏆 {challengeStatus.totalCompleted} challenges completed all time</Text>
       </View>
+
+      {/* Weekly Challenge */}
+      {weeklyChallenge && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🗓️ This Week</Text>
+          <WeeklyChallengeCard
+            progress={weeklyChallenge}
+            onClaim={handleClaimWeekly}
+          />
+        </View>
+      )}
 
       {/* Notification Prompt */}
       {showNotifPrompt && (
