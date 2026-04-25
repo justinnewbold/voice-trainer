@@ -93,10 +93,25 @@ export async function loadProgress(): Promise<UserProgress> {
   return { ...defaultProgress };
 }
 
-export async function saveSession(session: SessionResult): Promise<UserProgress & { xpGained: number; freezesConsumed?: number; streakBroken?: boolean }> {
+export interface SaveSessionResult extends UserProgress {
+  xpGained: number;
+  freezesConsumed: number;
+  streakBroken: boolean;
+  freezeEarned: boolean;
+  newAchievements: string[];
+  isPersonalBest: boolean;
+  weeklyJustCompleted: boolean;
+  weeklyChallengeTitle?: string;
+  prevLevel: UserProgress['level'];
+}
+
+export async function saveSession(session: SessionResult): Promise<SaveSessionResult> {
   const p = await loadProgress();
   const today = new Date().toDateString();
   if (!session.date) session.date = Date.now();
+
+  // Capture previous level so the UI can detect a level-up after this session.
+  const prevLevel = p.level;
 
   // Delegate streak evaluation to streakProtection module — auto-consumes
   // freezes if user missed days, marks the break recoverable if not.
@@ -122,23 +137,35 @@ export async function saveSession(session: SessionResult): Promise<UserProgress 
 
   await setItem(PROGRESS_KEY, JSON.stringify(p));
 
-  // Award streak freeze when crossing a milestone (every 7-day streak, capped at 3)
-  awardFreezeIfMilestone(p.currentStreak).catch(() => {});
+  // Award streak freeze when crossing a milestone (every 7-day streak, capped at 3).
+  // Awaited so we know whether to celebrate.
+  const freezeEarned = await awardFreezeIfMilestone(p.currentStreak).catch(() => false);
 
-  // Track weekly challenge progress
-  recordWeeklyProgress(session, xpGained).catch(() => {});
+  // Track weekly challenge progress (awaited for completion detection).
+  const weeklyResult = await recordWeeklyProgress(session, xpGained).catch(() => null);
 
-  // Non-blocking gamification
+  // Personal-best detection (awaited).
+  const bestResult = await updateBest(session.exerciseId, session.accuracy, session.score || 0)
+    .catch(() => ({ isPersonalBest: false, firstAttempt: true }));
+
+  // Achievements (awaited so we can surface the new unlocks).
+  const newAchievements = await checkAchievements(p, session).catch(() => [] as string[]);
+
+  // Non-blocking — these don't produce celebration signal so they stay fire-and-forget.
   updateDailyProgress(xpGained).catch(() => {});
   markCalendarDay(xpGained).catch(() => {});
-  updateBest(session.exerciseId, session.accuracy, session.score || 0).catch(() => {});
-  checkAchievements(p, session).catch(() => {});
 
   return {
     ...p,
     xpGained,
     freezesConsumed: evalResult.freezesConsumed,
     streakBroken: evalResult.broken,
+    freezeEarned,
+    newAchievements,
+    isPersonalBest: bestResult.isPersonalBest,
+    weeklyJustCompleted: weeklyResult?.justCompleted ?? false,
+    weeklyChallengeTitle: weeklyResult?.progress.challenge.title,
+    prevLevel,
   };
 }
 
@@ -382,9 +409,15 @@ export async function getBests(): Promise<Record<string, any>> {
   return {};
 }
 
-export async function updateBest(exerciseId: string, accuracy: number, score: number) {
+export async function updateBest(exerciseId: string, accuracy: number, score: number): Promise<{ isPersonalBest: boolean; firstAttempt: boolean }> {
   const bests = await getBests();
   const current = bests[exerciseId] || { accuracy: 0, score: 0, attempts: 0 };
+  const firstAttempt = (current.attempts || 0) === 0;
+  // A "personal best" means strictly better than the previous best. First attempt
+  // doesn't count — that's just an opening result, not a PR.
+  const isPersonalBest = !firstAttempt && (
+    accuracy > (current.accuracy || 0) || (score || 0) > (current.score || 0)
+  );
   bests[exerciseId] = {
     accuracy: Math.max(current.accuracy, accuracy),
     score: Math.max(current.score || 0, score || 0),
@@ -392,6 +425,7 @@ export async function updateBest(exerciseId: string, accuracy: number, score: nu
     lastPlayed: Date.now(),
   };
   await setItem(BESTS_KEY, JSON.stringify(bests));
+  return { isPersonalBest, firstAttempt };
 }
 
 // Unlocks

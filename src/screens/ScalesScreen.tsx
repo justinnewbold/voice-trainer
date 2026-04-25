@@ -14,6 +14,8 @@ import { useHaptics } from '../hooks/useHaptics';
 import { EXERCISES, Exercise } from '../utils/scales';
 import { noteToFrequency, frequencyToNoteInfo, isNoteHit, getNoteMatchScore } from '../utils/pitchUtils';
 import { saveSession, getBests } from '../utils/storage';
+import { buildSessionCelebrations } from '../utils/celebrationBuilder';
+import { useCelebrate } from '../contexts/CelebrationContext';
 import { createReplayBuilder, saveReplay, SessionReplay } from '../utils/sessionReplay';
 import { useKeepAwake } from '../hooks/useKeepAwake';
 import { maybePromptReview } from '../hooks/useStoreReview';
@@ -26,6 +28,7 @@ type Level = 'all' | 'beginner' | 'intermediate' | 'advanced';
 const LEVEL_COLORS: Record<string, string> = { beginner: COLORS.success, intermediate: COLORS.warning, advanced: COLORS.danger };
 
 export default function ScalesScreen() {
+  const celebrate = useCelebrate();
   const [selected, setSelected] = useState<Exercise | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [noteIdx, setNoteIdx] = useState(0);
@@ -150,7 +153,20 @@ export default function ScalesScreen() {
       setReplay(builtReplay);
     }
     if (selected) {
-      await saveSession({ id: Date.now().toString(), date: Date.now(), exerciseId: selected.id, exerciseName: selected.name + (transpose !== 0 ? ` (${transpose > 0 ? '+' : ''}${transpose})` : ''), type: 'scale', duration, accuracy: acc, notesHit: results.length, totalNotes: selected.notes.length });
+      const result = await saveSession({ id: Date.now().toString(), date: Date.now(), exerciseId: selected.id, exerciseName: selected.name + (transpose !== 0 ? ` (${transpose > 0 ? '+' : ''}${transpose})` : ''), type: 'scale', duration, accuracy: acc, notesHit: results.length, totalNotes: selected.notes.length });
+      // Dispatch all earned celebrations (achievements, milestones, freezes, weekly, etc.)
+      celebrate(buildSessionCelebrations({
+        newAchievements: result.newAchievements,
+        freezeEarned: result.freezeEarned,
+        freezesConsumed: result.freezesConsumed,
+        currentStreak: result.currentStreak,
+        prevLevel: result.prevLevel,
+        newLevel: result.level,
+        weeklyJustCompleted: result.weeklyJustCompleted,
+        weeklyChallengeTitle: result.weeklyChallengeTitle,
+        personalBest: result.isPersonalBest,
+        session: { id: '', date: Date.now(), exerciseId: selected.id, exerciseName: selected.name, type: 'scale', duration, accuracy: acc },
+      }));
       await maybePromptReview(acc);
       getBests().then(setBests);
     }

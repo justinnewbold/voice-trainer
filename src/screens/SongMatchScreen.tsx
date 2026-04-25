@@ -12,6 +12,8 @@ import { useReferenceTone } from '../hooks/useReferenceTone';
 import { SONG_MELODIES, SongMelody } from '../utils/scales';
 import { noteToFrequency, frequencyToNoteInfo, isNoteHit, getNoteMatchScore } from '../utils/pitchUtils';
 import { saveSession, getBests, getDailyChallengeStatus, markDailyChallengeComplete, getDailyChallenge } from '../utils/storage';
+import { buildSessionCelebrations } from '../utils/celebrationBuilder';
+import { useCelebrate } from '../contexts/CelebrationContext';
 import { createReplayBuilder, saveReplay, SessionReplay } from '../utils/sessionReplay';
 import { useHaptics } from '../hooks/useHaptics';
 import { useKeepAwake } from '../hooks/useKeepAwake';
@@ -25,6 +27,7 @@ type LevelFilter = 'all' | 'beginner' | 'intermediate' | 'advanced';
 const ALL_GENRES = ['All', ...Array.from(new Set(SONG_MELODIES.map(s => s.genre))).sort()];
 
 export default function SongMatchScreen() {
+  const celebrate = useCelebrate();
   const [selected, setSelected] = useState<SongMelody | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [noteIdx, setNoteIdx] = useState(0);
@@ -201,10 +204,23 @@ export default function SongMatchScreen() {
         setReplay(builtReplay);
       }
 
-      await saveSession({
+      const sessResult = await saveSession({
         id: Date.now().toString(), date: Date.now(), exerciseId: selected.id, exerciseName: selected.name,
         type: 'song', duration, accuracy: acc, score, combo: finalCombo ?? combo,
       });
+      // Dispatch all earned celebrations
+      celebrate(buildSessionCelebrations({
+        newAchievements: sessResult.newAchievements,
+        freezeEarned: sessResult.freezeEarned,
+        freezesConsumed: sessResult.freezesConsumed,
+        currentStreak: sessResult.currentStreak,
+        prevLevel: sessResult.prevLevel,
+        newLevel: sessResult.level,
+        weeklyJustCompleted: sessResult.weeklyJustCompleted,
+        weeklyChallengeTitle: sessResult.weeklyChallengeTitle,
+        personalBest: sessResult.isPersonalBest,
+        session: { id: '', date: Date.now(), exerciseId: selected.id, exerciseName: selected.name, type: 'song', duration, accuracy: acc, score },
+      }));
       await maybePromptReview(acc);
 
       const challenge = getDailyChallenge();

@@ -10,10 +10,13 @@ import { useKeepAwake } from '../hooks/useKeepAwake';
 import { maybePromptReview } from '../hooks/useStoreReview';
 import { A11Y } from '../hooks/useAccessibility';
 import { saveSession } from '../utils/storage';
+import { buildSessionCelebrations } from '../utils/celebrationBuilder';
+import { useCelebrate } from '../contexts/CelebrationContext';
 import MetronomeBadge from '../components/MetronomeBadge';
 import { useMetronome } from '../hooks/useMetronome';
 
 export default function PitchDetectorScreen() {
+  const celebrate = useCelebrate();
   const { frequency, noteInfo, pitchHint, color, isListening, volume, startListening, stopListening, error } = usePitchDetection();
   const metronome = useMetronome(80);
   const [sessionAccuracies, setSessionAccuracies] = useState<number[]>([]);
@@ -39,10 +42,23 @@ export default function PitchDetectorScreen() {
       const duration = sessionStart ? Math.floor((Date.now() - sessionStart.getTime()) / 1000) : 0;
       const avgAcc = sessionAccuracies.length > 0 ? Math.round(sessionAccuracies.reduce((a, b) => a + b, 0) / sessionAccuracies.length) : 0;
       if (duration > 5) {
-        await saveSession({
+        const result = await saveSession({
           id: Date.now().toString(), date: Date.now(), exerciseId: 'freeform', exerciseName: 'Free Practice',
           type: 'freeform', duration, accuracy: avgAcc, notesHit: onPitchCount, totalNotes: totalCount,
         });
+        celebrate(buildSessionCelebrations({
+          newAchievements: result.newAchievements,
+          freezeEarned: result.freezeEarned,
+          freezesConsumed: result.freezesConsumed,
+          currentStreak: result.currentStreak,
+          prevLevel: result.prevLevel,
+          newLevel: result.level,
+          weeklyJustCompleted: result.weeklyJustCompleted,
+          weeklyChallengeTitle: result.weeklyChallengeTitle,
+          // Free Practice never sets a "personal best" — it's the same exerciseId every time
+          personalBest: false,
+          session: { id: '', date: Date.now(), exerciseId: 'freeform', exerciseName: 'Free Practice', type: 'freeform', duration, accuracy: avgAcc },
+        }));
         await maybePromptReview(avgAcc);
       }
       await stopListening();
