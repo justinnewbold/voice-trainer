@@ -19,6 +19,7 @@ import { useHaptics } from '../hooks/useHaptics';
 import { useKeepAwake } from '../hooks/useKeepAwake';
 import { maybePromptReview } from '../hooks/useStoreReview';
 import ContextMenu from '../components/ContextMenu';
+import FavoriteButton from '../components/FavoriteButton';
 import { A11Y } from '../hooks/useAccessibility';
 
 const LEVEL_COLORS: Record<string, string> = { beginner: COLORS.success, intermediate: COLORS.warning, advanced: COLORS.danger };
@@ -523,6 +524,7 @@ export default function SongMatchScreen() {
                 </View>
               </View>
               <View style={styles.songCardRight}>
+                <FavoriteButton id={item.id} kind="song" size={20} />
                 {best ? (
                   <View style={styles.bestMini}>
                     <Text style={[styles.bestMiniAcc, { color: best.accuracy >= 80 ? COLORS.success : '#F59E0B' }]}>{best.accuracy}%</Text>
@@ -573,7 +575,7 @@ const styles = StyleSheet.create({
   levelBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   levelText: { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
   noteCount: { fontSize: 11, color: COLORS.textMuted },
-  songCardRight: { alignItems: 'flex-end' },
+  songCardRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   bestMini: { alignItems: 'center' },
   bestMiniAcc: { fontSize: 16, fontWeight: '700' },
   bestMiniLabel: { fontSize: 10, color: COLORS.textMuted },

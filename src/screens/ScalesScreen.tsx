@@ -21,6 +21,7 @@ import { useKeepAwake } from '../hooks/useKeepAwake';
 import { maybePromptReview } from '../hooks/useStoreReview';
 import ContextMenu from '../components/ContextMenu';
 import MetronomeBadge from '../components/MetronomeBadge';
+import FavoriteButton from '../components/FavoriteButton';
 import { useMetronome } from '../hooks/useMetronome';
 import { A11Y } from '../hooks/useAccessibility';
 
@@ -365,6 +366,7 @@ export default function ScalesScreen() {
                   <Text style={styles.exerciseName}>{item.name}</Text>
                   <Text style={styles.exerciseDesc}>{item.description} · {item.notes.length} notes · {item.bpm} BPM</Text>
                 </View>
+                <FavoriteButton id={item.id} kind="exercise" size={20} />
                 {best ? <Text style={[styles.bestMini, { color: best.accuracy >= 80 ? COLORS.success : COLORS.warning }]}>{best.accuracy}%</Text>
                   : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
               </TouchableOpacity>
