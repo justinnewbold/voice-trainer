@@ -390,14 +390,54 @@ export async function markCalendarDay(xp: number) {
   await setItem(CALENDAR_KEY, JSON.stringify(cal));
 }
 
-export async function getCalendarData(weeks = 12) {
+export interface CalendarDay {
+  date: string;          // YYYY-MM-DD
+  xp: number;            // 0 if no practice (or freeze-protected)
+  dayOfWeek: number;     // 0-6 (Sun-Sat)
+  isToday: boolean;
+  isFuture: boolean;     // dates after today (only relevant when callers ask for full grid)
+  /** Whether this day was bridged by an auto-consumed streak freeze. */
+  freezeProtected: boolean;
+  /** Whether this day was a manual streak restore. */
+  restored: boolean;
+}
+
+export async function getCalendarData(weeks = 12): Promise<CalendarDay[]> {
   const cal = await getCalendar();
-  const days = [];
+  // Pull freeze/restore history from streak protection so we can mark
+  // those days distinctly in the heatmap.
+  const { loadStreakProtection } = await import('./streakProtection');
+  const sp = await loadStreakProtection().catch(() => null);
+  // Build a date → 'freeze' | 'restore' lookup
+  const protectionByDate: Record<string, 'freeze' | 'restore'> = {};
+  if (sp?.history) {
+    for (const h of sp.history) {
+      // history.date is `new Date().toDateString()` format e.g. "Mon Apr 21 2026"
+      const d = new Date(h.date);
+      if (!isNaN(d.getTime())) {
+        const key = d.toISOString().slice(0, 10);
+        // Don't overwrite if multiple entries hit the same day
+        if (!protectionByDate[key]) protectionByDate[key] = h.type;
+      }
+    }
+  }
+
+  const days: CalendarDay[] = [];
   const now = new Date();
   for (let i = weeks * 7 - 1; i >= 0; i--) {
-    const d = new Date(now); d.setDate(d.getDate() - i);
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
     const key = d.toISOString().slice(0, 10);
-    days.push({ date: key, xp: cal[key] || 0, dayOfWeek: d.getDay(), isToday: i === 0 });
+    const protection = protectionByDate[key];
+    days.push({
+      date: key,
+      xp: cal[key] || 0,
+      dayOfWeek: d.getDay(),
+      isToday: i === 0,
+      isFuture: false,
+      freezeProtected: protection === 'freeze',
+      restored: protection === 'restore',
+    });
   }
   return days;
 }
