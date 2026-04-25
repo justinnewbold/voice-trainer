@@ -7,6 +7,8 @@ import AuthScreen from '../src/screens/AuthScreen';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, Text, Platform } from 'react-native';
 import { hasCompletedOnboarding, markOnboardingComplete } from '../src/utils/storage';
+import { CelebrationProvider } from '../src/contexts/CelebrationContext';
+import CelebrationToast from '../src/components/CelebrationToast';
 
 // Lazy import splash screen (may not be available on all platforms)
 let SplashScreen: any = null;
@@ -84,6 +86,7 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
+    <CelebrationProvider>
     <ErrorBoundary>
     <View style={styles.container} onLayout={onLayoutReady}>
       <StatusBar style="light" />
@@ -95,8 +98,11 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: '#0A0A1A' },
         }}
       />
+      {/* Global celebration toast — sits on top of everything */}
+      <CelebrationToast />
     </View>
     </ErrorBoundary>
+    </CelebrationProvider>
     </AuthProvider>
   );
 }
