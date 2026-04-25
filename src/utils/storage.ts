@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { evaluateStreakOnSession, awardFreezeIfMilestone } from './streakProtection';
+import { recordWeeklyProgress, resetWeeklyChallenge } from './weeklyChallenge';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export interface SessionResult {
@@ -124,6 +125,9 @@ export async function saveSession(session: SessionResult): Promise<UserProgress 
   // Award streak freeze when crossing a milestone (every 7-day streak, capped at 3)
   awardFreezeIfMilestone(p.currentStreak).catch(() => {});
 
+  // Track weekly challenge progress
+  recordWeeklyProgress(session, xpGained).catch(() => {});
+
   // Non-blocking gamification
   updateDailyProgress(xpGained).catch(() => {});
   markCalendarDay(xpGained).catch(() => {});
@@ -146,6 +150,14 @@ export async function setCurrentStreak(value: number): Promise<UserProgress> {
   return p;
 }
 
+export async function addXP(amount: number): Promise<UserProgress> {
+  const p = await loadProgress();
+  p.xp = (p.xp || 0) + amount;
+  p.level = p.xp >= 5000 ? 'advanced' : p.xp >= 1000 ? 'intermediate' : 'beginner';
+  await setItem(PROGRESS_KEY, JSON.stringify(p));
+  return p;
+}
+
 export async function clearProgress(): Promise<void> {
   await setItem(PROGRESS_KEY, JSON.stringify(defaultProgress));
   await setItem(GEMS_KEY, '0');
@@ -156,6 +168,8 @@ export async function clearProgress(): Promise<void> {
   // Reset streak protection state too (freeze inventory + break records)
   const { resetStreakProtection } = await import('./streakProtection');
   await resetStreakProtection();
+  // Reset weekly challenge progress too
+  await resetWeeklyChallenge();
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
