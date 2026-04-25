@@ -323,6 +323,7 @@ export default function ProgressScreen() {
         </View>
       </Modal>
     </ScrollView>
+    </ScreenErrorBoundary>
   );
 }
 
