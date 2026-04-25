@@ -9,6 +9,10 @@ import { isSupabaseConfigured } from '../auth/supabaseClient';
 import { fullSync } from '../auth/syncService';
 import { useRouter } from 'expo-router';
 import { loadSettings, saveSettings, clearProgress, loadVocalRange, loadProgress, AppSettings, defaultSettings } from '../utils/storage';
+import {
+  loadStreakProtection, type StreakProtectionState,
+  MAX_FREEZES, FREEZE_AWARD_INTERVAL,
+} from '../utils/streakProtection';
 import { useNotifications } from '../hooks/useNotifications';
 
 const THEMES = [
@@ -50,13 +54,15 @@ export default function SettingsScreen() {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [vocalRange, setVocalRange] = useState<any>(null);
   const [saved, setSaved] = useState(false);
+  const [streakProtection, setStreakProtection] = useState<StreakProtectionState | null>(null);
   const { enable: enableNotifs, disable: disableNotifs, updateBadge } = useNotifications();
 
   useFocusEffect(useCallback(() => {
     (async () => {
-      const [s, r] = await Promise.all([loadSettings(), loadVocalRange()]);
+      const [s, r, sp] = await Promise.all([loadSettings(), loadVocalRange(), loadStreakProtection()]);
       setSettings(s);
       setVocalRange(r);
+      setStreakProtection(sp);
     })();
   }, []));
 
@@ -281,6 +287,37 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* Streak Protection */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>❄️ Streak Protection</Text>
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowLabel}>Streak Freezes</Text>
+            <Text style={styles.rowSub}>
+              Earn 1 freeze every {FREEZE_AWARD_INTERVAL}-day streak (max {MAX_FREEZES}). Auto-protects missed days.
+            </Text>
+          </View>
+          <View style={spStyles.freezeBadge}>
+            <Text style={spStyles.freezeBadgeText}>
+              {streakProtection?.freezeCount ?? 0} / {MAX_FREEZES}
+            </Text>
+          </View>
+        </View>
+        {streakProtection && streakProtection.history.length > 0 && (
+          <View style={spStyles.historyBox}>
+            <Text style={spStyles.historyLabel}>Recent activity</Text>
+            {streakProtection.history.slice(0, 3).map((h, i) => (
+              <View key={i} style={spStyles.historyRow}>
+                <Text style={spStyles.historyType}>
+                  {h.type === 'freeze' ? '❄️ Freeze auto-used' : '🔥 Streak restored'}
+                </Text>
+                <Text style={spStyles.historyDate}>{h.date}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
       {/* Danger Zone */}
       <View style={[styles.section, styles.dangerSection]}>
         <Text style={styles.sectionTitle}>⚠️ Danger Zone</Text>
@@ -408,4 +445,48 @@ const sStyles = StyleSheet.create({
   syncNote: { fontSize: 13, color: COLORS.textMuted, lineHeight: 18, marginBottom: 12 },
   signInBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, padding: 13, borderRadius: BORDER_RADIUS.lg },
   signInBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+});
+
+const spStyles = StyleSheet.create({
+  freezeBadge: {
+    backgroundColor: 'rgba(125,211,252,0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(125,211,252,0.25)',
+  },
+  freezeBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#7DD3FC',
+  },
+  historyBox: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#2A2A50',
+    gap: 6,
+  },
+  historyLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  historyType: {
+    fontSize: 12,
+    color: COLORS.text,
+  },
+  historyDate: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+  },
 });

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { evaluateStreakOnSession, awardFreezeIfMilestone } from './streakProtection';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export interface SessionResult {
@@ -91,15 +92,15 @@ export async function loadProgress(): Promise<UserProgress> {
   return { ...defaultProgress };
 }
 
-export async function saveSession(session: SessionResult): Promise<UserProgress & { xpGained: number }> {
+export async function saveSession(session: SessionResult): Promise<UserProgress & { xpGained: number; freezesConsumed?: number; streakBroken?: boolean }> {
   const p = await loadProgress();
   const today = new Date().toDateString();
-  const yesterday = new Date(Date.now() - 86400000).toDateString();
   if (!session.date) session.date = Date.now();
 
-  if (p.lastDate === today) { /* unchanged */ }
-  else if (p.lastDate === yesterday) { p.currentStreak = (p.currentStreak || 0) + 1; }
-  else { p.currentStreak = 1; }
+  // Delegate streak evaluation to streakProtection module — auto-consumes
+  // freezes if user missed days, marks the break recoverable if not.
+  const evalResult = await evaluateStreakOnSession(p.currentStreak || 0, p.lastDate, today);
+  p.currentStreak = evalResult.newStreak;
   if (p.currentStreak > p.longestStreak) p.longestStreak = p.currentStreak;
 
   p.sessions = [session, ...(p.sessions || [])].slice(0, 100);
@@ -120,13 +121,29 @@ export async function saveSession(session: SessionResult): Promise<UserProgress 
 
   await setItem(PROGRESS_KEY, JSON.stringify(p));
 
+  // Award streak freeze when crossing a milestone (every 7-day streak, capped at 3)
+  awardFreezeIfMilestone(p.currentStreak).catch(() => {});
+
   // Non-blocking gamification
   updateDailyProgress(xpGained).catch(() => {});
   markCalendarDay(xpGained).catch(() => {});
   updateBest(session.exerciseId, session.accuracy, session.score || 0).catch(() => {});
   checkAchievements(p, session).catch(() => {});
 
-  return { ...p, xpGained };
+  return {
+    ...p,
+    xpGained,
+    freezesConsumed: evalResult.freezesConsumed,
+    streakBroken: evalResult.broken,
+  };
+}
+
+export async function setCurrentStreak(value: number): Promise<UserProgress> {
+  const p = await loadProgress();
+  p.currentStreak = value;
+  if (p.currentStreak > p.longestStreak) p.longestStreak = p.currentStreak;
+  await setItem(PROGRESS_KEY, JSON.stringify(p));
+  return p;
 }
 
 export async function clearProgress(): Promise<void> {
@@ -136,6 +153,9 @@ export async function clearProgress(): Promise<void> {
   await setItem(BESTS_KEY, '{}');
   await setItem(CALENDAR_KEY, '{}');
   await setItem(DAILY_CHALLENGE_KEY, '{}');
+  // Reset streak protection state too (freeze inventory + break records)
+  const { resetStreakProtection } = await import('./streakProtection');
+  await resetStreakProtection();
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
@@ -229,7 +249,7 @@ export async function getGems(): Promise<number> {
 }
 export async function addGems(amount: number): Promise<number> {
   const current = await getGems();
-  const next = current + amount;
+  const next = Math.max(0, current + amount);
   await setItem(GEMS_KEY, next.toString());
   return next;
 }
