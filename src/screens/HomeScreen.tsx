@@ -5,12 +5,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { loadProgress, UserProgress, levelInfo, getGems, getDailyProgress, getDailyChallengeStatus, markDailyChallengeComplete, loadSettings } from '../utils/storage';
+import {
+  loadStreakProtection, getRecoverableBreak, dismissRecoverableBreak, consumeRestore,
+  RESTORE_GEM_COST, type StreakProtectionState, type RecoverableBreak,
+} from '../utils/streakProtection';
 import { getDailyChallenge, EXERCISES, SONG_MELODIES } from '../utils/scales';
 import { clearBadge } from '../hooks/useNotifications';
 import { ScreenErrorBoundary } from '../components/ErrorBoundary';
 import { SkeletonHomeScreen, SkeletonCard, SkeletonChallengeCard, SkeletonQuickGrid } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import DailyPlanCard from '../components/DailyPlanCard';
+import StreakRecoveryModal from '../components/StreakRecoveryModal';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -22,12 +27,16 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [streakProtection, setStreakProtection] = useState<StreakProtectionState | null>(null);
+  const [recoverableBreak, setRecoverableBreak] = useState<RecoverableBreak | null>(null);
 
   const fetchData = useCallback(async () => {
-    const [p, g, d, cs, s] = await Promise.all([
-      loadProgress(), getGems(), getDailyProgress(), getDailyChallengeStatus(), loadSettings()
+    const [p, g, d, cs, s, sp, rb] = await Promise.all([
+      loadProgress(), getGems(), getDailyProgress(), getDailyChallengeStatus(), loadSettings(),
+      loadStreakProtection(), getRecoverableBreak(),
     ]);
     setProgress(p); setGems(g); setDaily(d); setChallengeStatus(cs); setSettings(s);
+    setStreakProtection(sp); setRecoverableBreak(rb);
     setLoading(false);
     if (!s.notificationsEnabled && p.totalSessions >= 2) setShowNotifPrompt(true);
   }, []);
@@ -58,6 +67,28 @@ export default function HomeScreen() {
     }
     setShowNotifPrompt(false);
   };
+
+  const handleRestoreStreak = useCallback(async () => {
+    if (!recoverableBreak) return;
+    if (gems < RESTORE_GEM_COST) return;
+
+    // Atomically: spend gems, restore the streak value
+    const restored = await consumeRestore(recoverableBreak.eventId);
+    if (!restored) return;
+
+    const { addGems, setCurrentStreak } = await import('../utils/storage');
+    await addGems(-RESTORE_GEM_COST);
+    await setCurrentStreak(restored);
+
+    // Refresh UI
+    await fetchData();
+  }, [recoverableBreak, gems, fetchData]);
+
+  const handleDismissBreak = useCallback(async () => {
+    if (!recoverableBreak) return;
+    await dismissRecoverableBreak(recoverableBreak.eventId);
+    setRecoverableBreak(null);
+  }, [recoverableBreak]);
 
   const quickActions = [
     { label: 'Warmup', icon: 'flame' as const, color: '#f97316', route: '/(tabs)/warmup', desc: 'Prep your voice' },
@@ -111,7 +142,11 @@ export default function HomeScreen() {
 
         <View style={styles.statsStrip}>
           {[
-            { val: `${progress?.currentStreak || 0}🔥`, lab: 'Streak' },
+            {
+              val: `${progress?.currentStreak || 0}🔥`,
+              lab: 'Streak',
+              freezes: streakProtection?.freezeCount || 0,
+            },
             { val: progress?.totalSessions || 0, lab: 'Sessions' },
             { val: `${progress?.avgAccuracy || 0}%`, lab: 'Accuracy' },
             { val: progress?.totalMinutes || 0, lab: 'Minutes' },
@@ -119,8 +154,13 @@ export default function HomeScreen() {
             <React.Fragment key={s.lab}>
               {i > 0 && <View style={styles.statDivider} />}
               <View style={styles.statItem}>
-                <Text style={styles.statVal}>{s.val}</Text>
-                <Text style={styles.statLab}>{s.lab}</Text>
+                <Text style={styles.statVal} numberOfLines={1} adjustsFontSizeToFit>{s.val}</Text>
+                <View style={styles.statLabRow}>
+                  <Text style={styles.statLab}>{s.lab}</Text>
+                  {s.freezes && s.freezes > 0 ? (
+                    <Text style={styles.freezeBadge}>❄️{s.freezes}</Text>
+                  ) : null}
+                </View>
               </View>
             </React.Fragment>
           ))}
@@ -243,6 +283,18 @@ export default function HomeScreen() {
 
       <View style={{ height: 40 }} />
     </ScrollView>
+
+    {/* Streak Recovery Modal — auto-shows when a recoverable break exists */}
+    <StreakRecoveryModal
+      visible={!!recoverableBreak}
+      prevStreak={recoverableBreak?.prevStreak || 0}
+      hoursLeft={recoverableBreak?.hoursLeft || 0}
+      gems={gems}
+      cooldownActive={recoverableBreak?.cooldownActive || false}
+      cooldownDaysLeft={recoverableBreak?.cooldownDaysLeft || 0}
+      onRestore={handleRestoreStreak}
+      onDismiss={handleDismissBreak}
+    />
     </ScreenErrorBoundary>
   );
 }
@@ -264,6 +316,17 @@ const styles = StyleSheet.create({
   statsStrip: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: BORDER_RADIUS.md, padding: 12 },
   statItem: { flex: 1, alignItems: 'center' },
   statVal: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  statLabRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  freezeBadge: {
+    fontSize: 10,
+    color: '#7DD3FC',
+    backgroundColor: 'rgba(125,211,252,0.12)',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 6,
+    overflow: 'hidden',
+    fontWeight: '600',
+  },
   statLab: { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
   statDivider: { width: 1, backgroundColor: '#2A2A50' },
   section: { margin: 16, marginBottom: 0, backgroundColor: '#13132A', borderRadius: BORDER_RADIUS.lg, padding: 16, borderWidth: 1, borderColor: '#2A2A50' },
