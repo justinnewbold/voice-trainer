@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { loadProgress, clearProgress, UserProgress, levelInfo, getGems, getAchievements, ACHIEVEMENT_DEFS, getCalendarData, getBests, SessionResult, deleteSession, loadRangeHistory, RangeSnapshot } from '../utils/storage';
+import PracticeHeatmap from '../components/PracticeHeatmap';
 import VocalRangeHistory from '../components/VocalRangeHistory';
 import SwipeableRow from '../components/SwipeableRow';
 import { A11Y } from '../hooks/useAccessibility';
@@ -26,7 +27,7 @@ export default function ProgressScreen() {
   const { width: screenWidth } = useWindowDimensions();
 
   const fetch = useCallback(async () => {
-    const [p, g, a, c, b, rh] = await Promise.all([loadProgress(), getGems(), getAchievements(), getCalendarData(8), getBests(), loadRangeHistory()]);
+    const [p, g, a, c, b, rh] = await Promise.all([loadProgress(), getGems(), getAchievements(), getCalendarData(12), getBests(), loadRangeHistory()]);
     setProgress(p); setGems(g); setEarned(a.map(x => x.id)); setCalDays(c); setBests(b); setRangeHistory(rh);
     setLoading(false);
   }, []);
@@ -168,20 +169,7 @@ export default function ProgressScreen() {
           {calDays.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Activity Calendar</Text>
-              <View style={styles.calGrid}>
-                {calDays.map((d, i) => {
-                  const intensity = d.xp === 0 ? 0 : d.xp < 50 ? 1 : d.xp < 100 ? 2 : d.xp < 200 ? 3 : 4;
-                  const colors = ['#1E1E3A', '#2d1f6e', '#4c35b5', '#7c6af7', '#a78bfa'];
-                  return <View key={i} style={[styles.calDay, { backgroundColor: colors[intensity] }, d.isToday && styles.calDayToday]} />;
-                })}
-              </View>
-              <View style={styles.calLegend}>
-                <Text style={styles.calLegendText}>Less</Text>
-                {['#1E1E3A', '#2d1f6e', '#4c35b5', '#7c6af7', '#a78bfa'].map((c, i) => (
-                  <View key={i} style={[styles.calLegendDot, { backgroundColor: c }]} />
-                ))}
-                <Text style={styles.calLegendText}>More</Text>
-              </View>
+              <PracticeHeatmap days={calDays} />
             </View>
           )}
         </>
