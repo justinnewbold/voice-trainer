@@ -17,6 +17,7 @@ import EmptyState from '../components/EmptyState';
 import DailyPlanCard from '../components/DailyPlanCard';
 import StreakRecoveryModal from '../components/StreakRecoveryModal';
 import WeeklyChallengeCard from '../components/WeeklyChallengeCard';
+import HomeFavoritesSection from '../components/HomeFavoritesSection';
 import {
   loadWeeklyChallenge, claimWeeklyReward, type WeeklyChallengeProgress,
 } from '../utils/weeklyChallenge';
@@ -244,6 +245,9 @@ export default function HomeScreen() {
           />
         </View>
       )}
+
+      {/* Favorites — only renders if user has favorited anything */}
+      <HomeFavoritesSection />
 
       {/* Notification Prompt */}
       {showNotifPrompt && (

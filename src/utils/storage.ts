@@ -197,6 +197,9 @@ export async function clearProgress(): Promise<void> {
   await resetStreakProtection();
   // Reset weekly challenge progress too
   await resetWeeklyChallenge();
+  // Reset favorites too
+  const { resetFavorites } = await import('./favorites');
+  await resetFavorites();
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
