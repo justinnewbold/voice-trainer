@@ -22,8 +22,14 @@ import { maybePromptReview } from '../hooks/useStoreReview';
 import ContextMenu from '../components/ContextMenu';
 import MetronomeBadge from '../components/MetronomeBadge';
 import FavoriteButton from '../components/FavoriteButton';
+import TempoControl, { TempoMultiplier } from '../components/TempoControl';
+import HoldProgress from '../components/HoldProgress';
 import { useMetronome } from '../hooks/useMetronome';
 import { A11Y } from '../hooks/useAccessibility';
+
+// How long (ms) the user must sustain a correct note before it's counted.
+// Mirrors the threshold in the detection effect below.
+const HOLD_REQUIRED_MS = 1000;
 
 type Level = 'all' | 'beginner' | 'intermediate' | 'advanced';
 const LEVEL_COLORS: Record<string, string> = { beginner: COLORS.success, intermediate: COLORS.warning, advanced: COLORS.danger };
@@ -39,6 +45,8 @@ export default function ScalesScreen() {
   const [replay, setReplay] = useState<SessionReplay | null>(null);
   const [bests, setBests] = useState<Record<string, any>>({});
   const [transpose, setTranspose] = useState(0);       // semitone offset
+  const [tempoMul, setTempoMul] = useState<TempoMultiplier>(1.0); // practice speed
+  const [holdStartedAt, setHoldStartedAt] = useState<number | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const startRef = useRef<Date | null>(null);
   const replayBuilderRef = useRef<ReturnType<typeof createReplayBuilder> | null>(null);
@@ -78,18 +86,26 @@ export default function ScalesScreen() {
 
     if (noteMatches) {
       // Start hold timer on first matching frame
-      if (holdStartRef.current === 0) holdStartRef.current = Date.now();
-      // Require 1 second hold to count as a real hit (ensures proper note sustain)
+      if (holdStartRef.current === 0) {
+        holdStartRef.current = Date.now();
+        setHoldStartedAt(holdStartRef.current);
+      }
+      // Require sustained hold (HOLD_REQUIRED_MS) to count as a real hit
       const holdDuration = Date.now() - holdStartRef.current;
-      if (holdDuration < 1000) return; // not yet
+      if (holdDuration < HOLD_REQUIRED_MS) return; // not yet
     } else {
-      holdStartRef.current = 0; // reset hold if note drifts away
+      // Drift — reset hold and clear UI indicator
+      if (holdStartRef.current !== 0) {
+        holdStartRef.current = 0;
+        setHoldStartedAt(null);
+      }
       return;
     }
 
     // Note confirmed — record with partial score based on accuracy
     const matchScore = getNoteMatchScore(noteInfo.cents);
     holdStartRef.current = 0;
+    setHoldStartedAt(null);
     playNoteHit();
     hitNote();
     replayBuilderRef.current?.recordNoteResult({
@@ -102,6 +118,7 @@ export default function ScalesScreen() {
     if (next >= selected.notes.length) { finishExercise(); return; }
     noteStartRef.current = Date.now();
     holdStartRef.current = 0;
+    setHoldStartedAt(null);
     setNoteIdx(next);
   }, [noteInfo, isRunning]);
 
@@ -118,8 +135,11 @@ export default function ScalesScreen() {
     setCountdown(0);
     noteStartRef.current = Date.now();
     holdStartRef.current = 0;
+    setHoldStartedAt(null);
     await startListening();
-    metronome.setBpm(selected!.bpm);
+    // Apply practice-speed multiplier to the metronome
+    const effectiveBpm = Math.max(20, Math.round(selected!.bpm * tempoMul));
+    metronome.setBpm(effectiveBpm);
     metronome.start();
     startRef.current = new Date();
     setIsRunning(true);
@@ -131,6 +151,8 @@ export default function ScalesScreen() {
     setIsRunning(false);
     metronome.stop();
     await stopListening();
+    holdStartRef.current = 0;
+    setHoldStartedAt(null);
     const duration = startRef.current ? Math.floor((Date.now() - startRef.current.getTime()) / 1000) : 0;
     const acc = results.length > 0 ? Math.round(results.reduce((a, b) => a + b, 0) / results.length) : 0;
 
@@ -154,7 +176,11 @@ export default function ScalesScreen() {
       setReplay(builtReplay);
     }
     if (selected) {
-      const result = await saveSession({ id: Date.now().toString(), date: Date.now(), exerciseId: selected.id, exerciseName: selected.name + (transpose !== 0 ? ` (${transpose > 0 ? '+' : ''}${transpose})` : ''), type: 'scale', duration, accuracy: acc, notesHit: results.length, totalNotes: selected.notes.length });
+      // Build a descriptive name including any transpose / tempo modifications
+      // so the progress history reflects exactly how it was practiced.
+      const transposeSuffix = transpose !== 0 ? ` (${transpose > 0 ? '+' : ''}${transpose})` : '';
+      const tempoSuffix = tempoMul !== 1.0 ? ` @${Math.round(tempoMul * 100)}%` : '';
+      const result = await saveSession({ id: Date.now().toString(), date: Date.now(), exerciseId: selected.id, exerciseName: selected.name + transposeSuffix + tempoSuffix, type: 'scale', duration, accuracy: acc, notesHit: results.length, totalNotes: selected.notes.length });
       // Dispatch all earned celebrations (achievements, milestones, freezes, weekly, etc.)
       celebrate(buildSessionCelebrations({
         newAchievements: result.newAchievements,
@@ -193,7 +219,10 @@ export default function ScalesScreen() {
       <View style={styles.container}>
         <LinearGradient colors={['#1a0a2e', COLORS.background]} style={styles.header}>
           <Text style={styles.title}>{selected.name}{transpose !== 0 ? ` ${transpose > 0 ? '+' : ''}${transpose}` : ''}</Text>
-          <Text style={styles.subtitle}>Note {noteIdx + 1} / {selected.notes.length}</Text>
+          <Text style={styles.subtitle}>
+            Note {noteIdx + 1} / {selected.notes.length}
+            {tempoMul !== 1.0 ? ` · ${Math.round(tempoMul * 100)}% speed` : ''}
+          </Text>
         </LinearGradient>
         <View style={styles.exerciseContent}>
           {countdown > 0 ? (
@@ -220,6 +249,12 @@ export default function ScalesScreen() {
               )}
               <PitchMeter note={noteInfo.note} octave={noteInfo.octave} cents={noteInfo.cents}
                 frequency={noteInfo.frequency} pitchHint={pitchHint} color={color} volume={volume} isStable={false} />
+              {/* Hold timer indicator: makes the 1-second sustain requirement visible */}
+              <HoldProgress
+                startedAt={holdStartedAt}
+                requiredMs={HOLD_REQUIRED_MS}
+                isSinging={noteInfo.note !== '-' && volume > 0.05}
+              />
               <View style={styles.progressBar}>
                 <View style={[styles.progressFill, { width: `${(noteIdx / selected.notes.length) * 100}%` }]} />
               </View>
@@ -293,6 +328,14 @@ export default function ScalesScreen() {
             )}
           </View>
 
+          {/* Practice Speed: lets singers slow down to learn, then speed up to master */}
+          <TempoControl
+            value={tempoMul}
+            onChange={setTempoMul}
+            baseBpm={selected.bpm}
+            subtitle="Slow it down to learn, then push the tempo to master it."
+          />
+
           {best && (
             <View style={styles.bestCard}>
               <Text style={styles.bestTitle}>🏆 Your Best: {best.accuracy}% · {best.attempts} attempts</Text>
@@ -350,14 +393,14 @@ export default function ScalesScreen() {
           return (
             <ContextMenu
               actions={[
-                { label: 'Start Exercise', icon: 'play', onPress: () => { setSelected(item); setTranspose(0); } },
-                { label: 'Preview Notes', icon: 'musical-notes', onPress: () => { setSelected(item); setTranspose(0); } },
+                { label: 'Start Exercise', icon: 'play', onPress: () => { setSelected(item); setTranspose(0); setTempoMul(1.0); } },
+                { label: 'Preview Notes', icon: 'musical-notes', onPress: () => { setSelected(item); setTranspose(0); setTempoMul(1.0); } },
                 ...(best ? [{ label: `Best: ${best.accuracy}%`, icon: 'trophy' as const, onPress: () => {} }] : []),
               ]}
             >
               <TouchableOpacity
                 style={styles.exerciseCard}
-                onPress={() => { setSelected(item); setTranspose(0); }}
+                onPress={() => { setSelected(item); setTranspose(0); setTempoMul(1.0); }}
                 activeOpacity={0.7}
                 {...A11Y.exerciseCard(item.name, item.level, !!best)}
               >
@@ -438,5 +481,6 @@ const styles = StyleSheet.create({
   stopBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.danger, paddingHorizontal: 24, paddingVertical: 12, borderRadius: BORDER_RADIUS.lg },
   stopText: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.bold, color: '#fff' },
 });
+
 
 
